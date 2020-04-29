@@ -32,11 +32,12 @@ namespace Dynarmic::A32 {
 
 using namespace Backend::X64;
 
-static RunCodeCallbacks GenRunCodeCallbacks(A32::UserCallbacks* cb, CodePtr (*LookupBlock)(void* lookup_block_arg), void* arg) {
+static RunCodeCallbacks GenRunCodeCallbacks(A32::UserConfig& config, CodePtr (*LookupBlock)(void* lookup_block_arg), void* arg) {
     return RunCodeCallbacks{
         std::make_unique<ArgCallback>(LookupBlock, reinterpret_cast<u64>(arg)),
-        std::make_unique<ArgCallback>(Devirtualize<&A32::UserCallbacks::AddTicks>(cb)),
-        std::make_unique<ArgCallback>(Devirtualize<&A32::UserCallbacks::GetTicksRemaining>(cb)),
+        std::make_unique<ArgCallback>(Devirtualize<&A32::UserCallbacks::AddTicks>(config.callbacks)),
+        std::make_unique<ArgCallback>(Devirtualize<&A32::UserCallbacks::GetTicksRemaining>(config.callbacks)),
+        config.enable_ticks,
     };
 }
 
@@ -53,7 +54,7 @@ static std::function<void(BlockOfCode&)> GenRCP(const A32::UserConfig& config) {
 
 struct Jit::Impl {
     Impl(Jit* jit, A32::UserConfig config)
-            : block_of_code(GenRunCodeCallbacks(config.callbacks, &GetCurrentBlockThunk, this), JitStateInfo{jit_state}, GenRCP(config))
+            : block_of_code(GenRunCodeCallbacks(config, &GetCurrentBlockThunk, this), JitStateInfo{jit_state}, GenRCP(config))
             , emitter(block_of_code, config, jit)
             , config(std::move(config))
             , jit_interface(jit)

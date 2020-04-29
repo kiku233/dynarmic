@@ -169,9 +169,11 @@ void BlockOfCode::GenRunCode(std::function<void(BlockOfCode&)> rcp) {
     mov(r15, ABI_PARAM1);
     mov(rbx, ABI_PARAM2); // save temporarily in non-volatile register
 
-    cb.GetTicksRemaining->EmitCall(*this);
-    mov(qword[r15 + jsi.offsetof_cycles_to_run], ABI_RETURN);
-    mov(qword[r15 + jsi.offsetof_cycles_remaining], ABI_RETURN);
+    if (cb.enable_ticks) {
+        cb.GetTicksRemaining->EmitCall(*this);
+        mov(qword[r15 + jsi.offsetof_cycles_to_run], ABI_RETURN);
+        mov(qword[r15 + jsi.offsetof_cycles_remaining], ABI_RETURN);
+    }
 
     rcp(*this);
 
@@ -185,8 +187,10 @@ void BlockOfCode::GenRunCode(std::function<void(BlockOfCode&)> rcp) {
 
     mov(r15, ABI_PARAM1);
 
-    mov(qword[r15 + jsi.offsetof_cycles_to_run], 1);
-    mov(qword[r15 + jsi.offsetof_cycles_remaining], 1);
+    if (cb.enable_ticks) {
+        mov(qword[r15 + jsi.offsetof_cycles_to_run], 1);
+        mov(qword[r15 + jsi.offsetof_cycles_remaining], 1);
+    }
 
     rcp(*this);
 
@@ -202,16 +206,20 @@ void BlockOfCode::GenRunCode(std::function<void(BlockOfCode&)> rcp) {
     align();
     return_from_run_code[0] = getCurr<const void*>();
 
-    cmp(qword[r15 + jsi.offsetof_cycles_remaining], 0);
-    jng(return_to_caller);
+    if (cb.enable_ticks) {
+        cmp(qword[r15 + jsi.offsetof_cycles_remaining], 0);
+        jng(return_to_caller);
+    }
     cb.LookupBlock->EmitCall(*this);
     jmp(ABI_RETURN);
 
     align();
     return_from_run_code[MXCSR_ALREADY_EXITED] = getCurr<const void*>();
 
-    cmp(qword[r15 + jsi.offsetof_cycles_remaining], 0);
-    jng(return_to_caller_mxcsr_already_exited);
+    if (cb.enable_ticks) {
+        cmp(qword[r15 + jsi.offsetof_cycles_remaining], 0);
+        jng(return_to_caller_mxcsr_already_exited);
+    }
     SwitchMxcsrOnEntry();
     cb.LookupBlock->EmitCall(*this);
     jmp(ABI_RETURN);
@@ -226,10 +234,12 @@ void BlockOfCode::GenRunCode(std::function<void(BlockOfCode&)> rcp) {
     return_from_run_code[MXCSR_ALREADY_EXITED | FORCE_RETURN] = getCurr<const void*>();
     L(return_to_caller_mxcsr_already_exited);
 
-    cb.AddTicks->EmitCall(*this, [this](RegList param) {
-        mov(param[0], qword[r15 + jsi.offsetof_cycles_to_run]);
-        sub(param[0], qword[r15 + jsi.offsetof_cycles_remaining]);
-    });
+    if (cb.enable_ticks) {
+        cb.AddTicks->EmitCall(*this, [this](RegList param) {
+            mov(param[0], qword[r15 + jsi.offsetof_cycles_to_run]);
+            sub(param[0], qword[r15 + jsi.offsetof_cycles_remaining]);
+        });
+    }
 
     ABI_PopCalleeSaveRegistersAndAdjustStack(*this);
     ret();
@@ -248,6 +258,10 @@ void BlockOfCode::SwitchMxcsrOnExit() {
 }
 
 void BlockOfCode::UpdateTicks() {
+    if (!cb.enable_ticks) {
+        return;
+    }
+
     cb.AddTicks->EmitCall(*this, [this](RegList param) {
         mov(param[0], qword[r15 + jsi.offsetof_cycles_to_run]);
         sub(param[0], qword[r15 + jsi.offsetof_cycles_remaining]);

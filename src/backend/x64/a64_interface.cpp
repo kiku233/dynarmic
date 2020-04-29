@@ -25,11 +25,12 @@ namespace Dynarmic::A64 {
 
 using namespace Backend::X64;
 
-static RunCodeCallbacks GenRunCodeCallbacks(A64::UserCallbacks* cb, CodePtr (*LookupBlock)(void* lookup_block_arg), void* arg) {
+static RunCodeCallbacks GenRunCodeCallbacks(const A64::UserConfig& conf, CodePtr (*LookupBlock)(void* lookup_block_arg), void* arg) {
     return RunCodeCallbacks{
         std::make_unique<ArgCallback>(LookupBlock, reinterpret_cast<u64>(arg)),
-        std::make_unique<ArgCallback>(Devirtualize<&A64::UserCallbacks::AddTicks>(cb)),
-        std::make_unique<ArgCallback>(Devirtualize<&A64::UserCallbacks::GetTicksRemaining>(cb)),
+        std::make_unique<ArgCallback>(Devirtualize<&A64::UserCallbacks::AddTicks>(conf.callbacks)),
+        std::make_unique<ArgCallback>(Devirtualize<&A64::UserCallbacks::GetTicksRemaining>(conf.callbacks)),
+        conf.enable_ticks,
     };
 }
 
@@ -41,7 +42,7 @@ struct Jit::Impl final {
 public:
     Impl(Jit* jit, UserConfig conf)
         : conf(conf)
-        , block_of_code(GenRunCodeCallbacks(conf.callbacks, &GetCurrentBlockThunk, this), JitStateInfo{jit_state}, GenRCP(conf))
+        , block_of_code(GenRunCodeCallbacks(conf, &GetCurrentBlockThunk, this), JitStateInfo{jit_state}, GenRCP(conf))
         , emitter(block_of_code, conf, jit)
     {
         ASSERT(conf.page_table_address_space_bits >= 12 && conf.page_table_address_space_bits <= 64);
@@ -228,7 +229,12 @@ private:
 
         // JIT Compile
         const auto get_code = [this](u64 vaddr) { return conf.callbacks->MemoryReadCode(vaddr); };
-        IR::Block ir_block = A64::Translate(A64::LocationDescriptor{current_location}, get_code, {conf.define_unpredictable_behaviour});
+        const A64::TranslationOptions options{
+            conf.define_unpredictable_behaviour,
+            conf.hook_hint_instructions,
+            conf.enable_ticks,
+        };
+        IR::Block ir_block = A64::Translate(A64::LocationDescriptor{current_location}, get_code, options);
         Optimization::A64CallbackConfigPass(ir_block, conf);
         if (conf.enable_optimizations) {
             Optimization::A64GetSetElimination(ir_block);

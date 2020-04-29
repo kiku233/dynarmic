@@ -107,7 +107,9 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
 
     reg_alloc.AssertNoMoreUses();
 
-    EmitAddCycles(block.CycleCount());
+    if (conf.enable_ticks) {
+        EmitAddCycles(block.CycleCount());
+    }
     EmitX64::EmitTerminal(block.GetTerminal(), ctx.Location().SetSingleStepping(false), ctx.IsSingleStep());
     code.int3();
 
@@ -597,8 +599,18 @@ void A64EmitX64::EmitA64SetPC(A64EmitContext& ctx, IR::Inst* inst) {
 }
 
 void A64EmitX64::EmitA64CallSupervisor(A64EmitContext& ctx, IR::Inst* inst) {
-    ctx.reg_alloc.HostCall(nullptr);
+    code.SwitchMxcsrOnExit();
+
+    if (conf.enable_ticks) {
+        ctx.reg_alloc.HostCall(nullptr);
+        code.mov(code.ABI_PARAM2, qword[r15 + offsetof(A64JitState, cycles_to_run)]);
+        code.sub(code.ABI_PARAM2, qword[r15 + offsetof(A64JitState, cycles_remaining)]);
+        Devirtualize<&A64::UserCallbacks::AddTicks>(conf.callbacks).EmitCall(code);
+        ctx.reg_alloc.EndOfAllocScope();
+    }
+
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+    ctx.reg_alloc.HostCall(nullptr);
     ASSERT(args[0].IsImmediate());
     const u32 imm = args[0].GetImmediateU32();
     Devirtualize<&A64::UserCallbacks::CallSVC>(conf.callbacks).EmitCall(code,
@@ -607,6 +619,14 @@ void A64EmitX64::EmitA64CallSupervisor(A64EmitContext& ctx, IR::Inst* inst) {
         });
     // The kernel would have to execute ERET to get here, which would clear exclusive state.
     code.mov(code.byte[r15 + offsetof(A64JitState, exclusive_state)], u8(0));
+
+    if (conf.enable_ticks) {
+        Devirtualize<&A64::UserCallbacks::GetTicksRemaining>(conf.callbacks).EmitCall(code);
+        code.mov(qword[r15 + offsetof(A64JitState, cycles_to_run)], code.ABI_RETURN);
+        code.mov(qword[r15 + offsetof(A64JitState, cycles_remaining)], code.ABI_RETURN);
+    }
+
+    code.SwitchMxcsrOnEntry();
 }
 
 void A64EmitX64::EmitA64ExceptionRaised(A64EmitContext& ctx, IR::Inst* inst) {
@@ -1152,7 +1172,7 @@ std::string A64EmitX64::LocationDescriptorToFriendlyName(const IR::LocationDescr
                        descriptor.FPCR().Value());
 }
 
-void A64EmitX64::EmitTerminalImpl(IR::Term::Interpret terminal, IR::LocationDescriptor, bool) {
+void A64EmitX64::EmitTerminalImpl(IR::Term::Interpret terminal, IR::LocationDescriptor, bool is_single_step) {
     code.SwitchMxcsrOnExit();
     Devirtualize<&A64::UserCallbacks::InterpreterFallback>(conf.callbacks).EmitCall(code,
         [&](RegList param) {
@@ -1160,18 +1180,40 @@ void A64EmitX64::EmitTerminalImpl(IR::Term::Interpret terminal, IR::LocationDesc
             code.mov(qword[r15 + offsetof(A64JitState, pc)], param[0]);
             code.mov(param[1].cvt32(), terminal.num_instructions);
         });
-    code.ReturnFromRunCode(true); // TODO: Check cycles
+    if (is_single_step) {
+        code.ForceReturnFromRunCode(true);
+    } else {
+        code.ReturnFromRunCode(true);
+    }
 }
 
-void A64EmitX64::EmitTerminalImpl(IR::Term::ReturnToDispatch, IR::LocationDescriptor, bool) {
-    code.ReturnFromRunCode();
+void A64EmitX64::EmitTerminalImpl(IR::Term::ReturnToDispatch, IR::LocationDescriptor, bool is_single_step) {
+    if (is_single_step) {
+        code.ForceReturnFromRunCode();
+    } else {
+        code.ReturnFromRunCode();
+    }
 }
 
 void A64EmitX64::EmitTerminalImpl(IR::Term::LinkBlock terminal, IR::LocationDescriptor, bool is_single_step) {
     if (!conf.enable_optimizations || is_single_step) {
         code.mov(rax, A64::LocationDescriptor{terminal.next}.PC());
         code.mov(qword[r15 + offsetof(A64JitState, pc)], rax);
-        code.ReturnFromRunCode();
+        if (is_single_step) {
+            code.ForceReturnFromRunCode();
+        } else {
+            code.ReturnFromRunCode();
+        }
+        return;
+    }
+
+    if (!conf.enable_ticks) {
+        patch_information[terminal.next].jmp.emplace_back(code.getCurr());
+        if (auto next_bb = GetBasicBlock(terminal.next)) {
+            EmitPatchJmp(terminal.next, next_bb->entrypoint);
+        } else {
+            EmitPatchJmp(terminal.next);
+        }
         return;
     }
 
@@ -1192,7 +1234,11 @@ void A64EmitX64::EmitTerminalImpl(IR::Term::LinkBlockFast terminal, IR::Location
     if (!conf.enable_optimizations || is_single_step) {
         code.mov(rax, A64::LocationDescriptor{terminal.next}.PC());
         code.mov(qword[r15 + offsetof(A64JitState, pc)], rax);
-        code.ReturnFromRunCode();
+        if (is_single_step) {
+            code.ForceReturnFromRunCode();
+        } else {
+            code.ReturnFromRunCode();
+        }
         return;
     }
 
@@ -1206,7 +1252,11 @@ void A64EmitX64::EmitTerminalImpl(IR::Term::LinkBlockFast terminal, IR::Location
 
 void A64EmitX64::EmitTerminalImpl(IR::Term::PopRSBHint, IR::LocationDescriptor, bool is_single_step) {
     if (!conf.enable_optimizations || is_single_step) {
-        code.ReturnFromRunCode();
+        if (is_single_step) {
+            code.ForceReturnFromRunCode();
+        } else {
+            code.ReturnFromRunCode();
+        }
         return;
     }
 
@@ -1216,6 +1266,8 @@ void A64EmitX64::EmitTerminalImpl(IR::Term::PopRSBHint, IR::LocationDescriptor, 
 void A64EmitX64::EmitTerminalImpl(IR::Term::FastDispatchHint, IR::LocationDescriptor, bool is_single_step) {
     if (conf.enable_fast_dispatch && !is_single_step) {
         code.jmp(terminal_handler_fast_dispatch_hint);
+    } else if (is_single_step) {
+        code.ForceReturnFromRunCode();
     } else {
         code.ReturnFromRunCode();
     }

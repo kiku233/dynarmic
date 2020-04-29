@@ -208,9 +208,10 @@ struct UserConfig {
         NoChecks,
     } floating_point_nan_accuracy = NaNAccuracy::Accurate;
 
-    // Determines whether AddTicks and GetTicksRemaining are called.
-    // If false, execution will continue until soon after Jit::HaltExecution is called.
-    // bool enable_ticks = true; // TODO
+    // Determines whether AddTicks and GetTicksRemaining are used to control execution.
+    // If false, AddTicks and GetTicksRemaining will never be called, and we will run
+    // indefinitely until HaltExecution is called in an appropriate callback.
+    bool enable_ticks = true;
 };
 
 } // namespace A64

@@ -30,6 +30,9 @@ struct TranslationOptions {
     /// If this is false, we treat the instruction as a NOP.
     /// If this is true, we emit an ExceptionRaised instruction.
     bool hook_hint_instructions = true;
+
+    /// This tells the translator whether or not we care about tick accuracy.
+    bool enable_ticks = true;
 };
 
 /**

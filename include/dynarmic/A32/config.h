@@ -137,6 +137,11 @@ struct UserConfig {
     /// NOTE: Calling Jit::SetCpsr with CPSR.E=1 while this option is enabled may result
     ///       in unusual behavior.
     bool always_little_endian = false;
+
+    // Determines whether AddTicks and GetTicksRemaining are used to control execution.
+    // If false, AddTicks and GetTicksRemaining will never be called, and we will run
+    // indefinitely until HaltExecution is called in an appropriate callback.
+    bool enable_ticks = true;
 };
 
 } // namespace A32
