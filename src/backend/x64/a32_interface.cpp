@@ -181,9 +181,8 @@ void Jit::Run() {
     is_executing = true;
     SCOPE_EXIT { this->is_executing = false; };
 
-    impl->jit_state.halt_requested = false;
-
     impl->Execute();
+    impl->jit_state.halt_requested = false;
 
     impl->PerformCacheInvalidation();
 }
@@ -194,8 +193,8 @@ void Jit::Step() {
     SCOPE_EXIT { this->is_executing = false; };
 
     impl->jit_state.halt_requested = true;
-
     impl->Step();
+    impl->jit_state.halt_requested = false;
 
     impl->PerformCacheInvalidation();
 }

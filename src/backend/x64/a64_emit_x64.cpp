@@ -599,8 +599,6 @@ void A64EmitX64::EmitA64SetPC(A64EmitContext& ctx, IR::Inst* inst) {
 }
 
 void A64EmitX64::EmitA64CallSupervisor(A64EmitContext& ctx, IR::Inst* inst) {
-    code.SwitchMxcsrOnExit();
-
     if (conf.enable_ticks) {
         ctx.reg_alloc.HostCall(nullptr);
         code.mov(code.ABI_PARAM2, qword[r15 + offsetof(A64JitState, cycles_to_run)]);
@@ -625,8 +623,6 @@ void A64EmitX64::EmitA64CallSupervisor(A64EmitContext& ctx, IR::Inst* inst) {
         code.mov(qword[r15 + offsetof(A64JitState, cycles_to_run)], code.ABI_RETURN);
         code.mov(qword[r15 + offsetof(A64JitState, cycles_remaining)], code.ABI_RETURN);
     }
-
-    code.SwitchMxcsrOnEntry();
 }
 
 void A64EmitX64::EmitA64ExceptionRaised(A64EmitContext& ctx, IR::Inst* inst) {
@@ -1207,17 +1203,11 @@ void A64EmitX64::EmitTerminalImpl(IR::Term::LinkBlock terminal, IR::LocationDesc
         return;
     }
 
-    if (!conf.enable_ticks) {
-        patch_information[terminal.next].jmp.emplace_back(code.getCurr());
-        if (auto next_bb = GetBasicBlock(terminal.next)) {
-            EmitPatchJmp(terminal.next, next_bb->entrypoint);
-        } else {
-            EmitPatchJmp(terminal.next);
-        }
-        return;
+    if (conf.enable_ticks) {
+        code.cmp(qword[r15 + offsetof(A64JitState, cycles_remaining)], 0);
+    } else {
+        code.cmp(code.byte[r15 + offsetof(A64JitState, halt_requested)], 0);
     }
-
-    code.cmp(qword[r15 + offsetof(A64JitState, cycles_remaining)], 0);
 
     patch_information[terminal.next].jg.emplace_back(code.getCurr());
     if (auto next_bb = GetBasicBlock(terminal.next)) {

@@ -87,7 +87,7 @@ A32EmitX64::BlockDescriptor A32EmitX64::Emit(IR::Block& block) {
     code.EnableWriting();
     SCOPE_EXIT { code.DisableWriting(); };
 
-    static const std::vector<HostLoc> gpr_order = [this]{
+    const std::vector<HostLoc> gpr_order = [this]{
         std::vector<HostLoc> gprs{any_gpr};
         if (config.page_table) {
             gprs.erase(std::find(gprs.begin(), gprs.end(), HostLoc::R14));
@@ -1472,16 +1472,11 @@ void A32EmitX64::EmitTerminalImpl(IR::Term::LinkBlock terminal, IR::LocationDesc
         return;
     }
 
-    if (!config.enable_ticks) {
-        patch_information[terminal.next].jmp.emplace_back(code.getCurr());
-        if (const auto next_bb = GetBasicBlock(terminal.next)) {
-            EmitPatchJmp(terminal.next, next_bb->entrypoint);
-        } else {
-            EmitPatchJmp(terminal.next);
-        }
+    if (config.enable_ticks) {
+        code.cmp(qword[r15 + offsetof(A32JitState, cycles_remaining)], 0);
+    } else {
+        code.cmp(code.byte[r15 + offsetof(A32JitState, halt_requested)], 0);
     }
-
-    code.cmp(qword[r15 + offsetof(A32JitState, cycles_remaining)], 0);
 
     patch_information[terminal.next].jg.emplace_back(code.getCurr());
     if (const auto next_bb = GetBasicBlock(terminal.next)) {

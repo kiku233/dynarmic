@@ -208,8 +208,10 @@ void BlockOfCode::GenRunCode(std::function<void(BlockOfCode&)> rcp) {
 
     if (cb.enable_ticks) {
         cmp(qword[r15 + jsi.offsetof_cycles_remaining], 0);
-        jng(return_to_caller);
+    } else {
+        cmp(byte[r15 + jsi.offsetof_halt_requested], 0);
     }
+    jng(return_to_caller);
     cb.LookupBlock->EmitCall(*this);
     jmp(ABI_RETURN);
 
@@ -218,8 +220,10 @@ void BlockOfCode::GenRunCode(std::function<void(BlockOfCode&)> rcp) {
 
     if (cb.enable_ticks) {
         cmp(qword[r15 + jsi.offsetof_cycles_remaining], 0);
-        jng(return_to_caller_mxcsr_already_exited);
+    } else {
+        cmp(byte[r15 + jsi.offsetof_halt_requested], 0);
     }
+    jng(return_to_caller_mxcsr_already_exited);
     SwitchMxcsrOnEntry();
     cb.LookupBlock->EmitCall(*this);
     jmp(ABI_RETURN);
