@@ -5,15 +5,19 @@
 
 #pragma once
 
+#include <array>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <type_traits>
 #include <vector>
 
 namespace Dynarmic {
 namespace A64 {
 
 using VAddr = std::uint64_t;
+using Vector = std::array<std::uint64_t, 2>;
 
 class ExclusiveMonitor {
 public:
@@ -26,26 +30,48 @@ public:
 
     /// Marks a region containing [address, address+size) to be exclusive to
     /// processor processor_id.
-    void Mark(size_t processor_id, VAddr address, size_t size);
+    template <typename T, typename Function>
+    T ReadAndMark(size_t processor_id, VAddr address, Function op) {
+        static_assert(std::is_trivially_copyable_v<T>);
+
+        Lock();
+
+        const T value = op();
+        State& s = state[processor_id];
+        s.size = sizeof(T);
+        s.address = address;
+        s.value = {};
+        std::memcpy(s.value.data(), &value, sizeof(T));
+
+        Unlock();
+        return value;
+    }
 
     /// Checks to see if processor processor_id has exclusive access to the
     /// specified region. If it does, executes the operation then clears
     /// the exclusive state for processors if their exclusive region(s)
     /// contain [address, address+size).
-    template <typename Function>
-    bool DoExclusiveOperation(size_t processor_id, VAddr address, size_t size, Function op) {
-        if (!CheckAndClear(processor_id, address, size)) {
+    template <typename T, typename Function>
+    bool DoExclusiveOperation(size_t processor_id, VAddr address, Function op) {
+        static_assert(std::is_trivially_copyable_v<T>);
+
+        Lock();
+        if (!CheckAndClear(processor_id, address, sizeof(T))) {
             return false;
         }
 
-        op();
+        T value;
+        std::memcpy(&value, state[processor_id].value.data(), sizeof(T));
+        const bool result = op(value);
 
         Unlock();
-        return true;
+        return result;
     }
 
     /// Unmark everything.
     void Clear();
+    /// Unmark specific processor.
+    void ClearProcessor(size_t processor_id);
 
 private:
     bool CheckAndClear(size_t processor_id, VAddr address, size_t size);
@@ -53,10 +79,14 @@ private:
     void Lock();
     void Unlock();
 
-    static constexpr VAddr RESERVATION_GRANULE_MASK = 0xFFFF'FFFF'FFFF'FFF0ull;
-    static constexpr VAddr INVALID_EXCLUSIVE_ADDRESS = 0xDEAD'DEAD'DEAD'DEADull;
+    struct State {
+        size_t size = 0;
+        VAddr address;
+        Vector value;
+    };
+
     std::atomic_flag is_locked;
-    std::vector<VAddr> exclusive_addresses;
+    std::vector<State> state;
 };
 
 } // namespace A64

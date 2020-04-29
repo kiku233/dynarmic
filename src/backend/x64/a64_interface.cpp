@@ -8,6 +8,7 @@
 
 #include <boost/icl/interval_set.hpp>
 #include <dynarmic/A64/a64.h>
+#include <dynarmic/A64/exclusive_monitor.h>
 
 #include "backend/x64/a64_emit_x64.h"
 #include "backend/x64/a64_jitstate.h"
@@ -201,7 +202,7 @@ public:
     }
 
     void ClearExclusiveState() {
-        jit_state.exclusive_state = 0;
+        conf.global_monitor->ClearProcessor(conf.processor_id);
     }
 
     bool IsExecuting() const {

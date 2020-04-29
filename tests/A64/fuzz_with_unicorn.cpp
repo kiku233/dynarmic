@@ -76,7 +76,7 @@ static u32 GenRandomInst(u64 pc, bool is_last_inst) {
             // Unimplemented in QEMU
             "LDLAR",
             // Dynarmic and QEMU currently differ on how the exclusive monitor's address range works.
-            "STXR", "STLXR", "STXP", "STLXP", "LDXR", "LDAXR", "LDXP", "LDAXP",
+            "CLREX", "STXR", "STLXR", "STXP", "STLXP", "LDXR", "LDAXR", "LDXP", "LDAXP",
             // Behaviour differs from QEMU
             "MSR_reg", "MSR_imm", "MRS",
         };
