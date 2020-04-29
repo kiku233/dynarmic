@@ -60,6 +60,13 @@ public:
      */
     void HaltExecution();
 
+    /**
+     * TEMPORARY INTERFACE: Changes processor id. Intended to be used for
+     * library users needing to relocate threads across processors. This will be
+     * replaced by a cleaner interface in the future.
+     */
+    void ChangeProcessorID(std::size_t new_id);
+
     /// Read Stack Pointer
     std::uint64_t GetSP() const;
     /// Modify Stack Pointer

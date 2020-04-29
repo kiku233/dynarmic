@@ -43,7 +43,7 @@ public:
     Impl(Jit* jit, UserConfig conf)
         : conf(conf)
         , block_of_code(GenRunCodeCallbacks(conf, &GetCurrentBlockThunk, this), JitStateInfo{jit_state}, GenRCP(conf))
-        , emitter(block_of_code, conf, jit)
+        , emitter(block_of_code, this->conf, jit)
     {
         ASSERT(conf.page_table_address_space_bits >= 12 && conf.page_table_address_space_bits <= 64);
     }
@@ -103,6 +103,10 @@ public:
 
     void HaltExecution() {
         jit_state.halt_requested = true;
+    }
+
+    void ChangeProcessorID(size_t new_id) {
+        conf.processor_id = new_id;
     }
 
     u64 GetSP() const {
@@ -311,6 +315,10 @@ void Jit::Reset() {
 
 void Jit::HaltExecution() {
     impl->HaltExecution();
+}
+
+void Jit::ChangeProcessorID(size_t new_id) {
+    impl->ChangeProcessorID(new_id);
 }
 
 u64 Jit::GetSP() const {
