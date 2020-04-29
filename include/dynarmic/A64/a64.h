@@ -61,6 +61,13 @@ public:
     void HaltExecution();
 
     /**
+     * TEMPORARY INTERFACE: Exits execution from a callback, the callback must
+     * rewind the stack or never return to dynarmic from it's current stack.
+     * This will be replaced by a cleaner interface in the future.
+     */
+    void ExceptionalExit();
+
+    /**
      * TEMPORARY INTERFACE: Changes processor id. Intended to be used for
      * library users needing to relocate threads across processors. This will be
      * replaced by a cleaner interface in the future.

@@ -105,6 +105,16 @@ public:
         jit_state.halt_requested = true;
     }
 
+    void ExceptionalExit() {
+        if (conf.enable_ticks) {
+            const s64 ticks = jit_state.cycles_to_run - jit_state.cycles_remaining;
+            conf.callbacks->AddTicks(ticks);
+        }
+        PerformRequestedCacheInvalidation();
+        jit_state.halt_requested = false;
+        is_executing = false;
+    }
+
     void ChangeProcessorID(size_t new_id) {
         conf.processor_id = new_id;
     }
@@ -311,6 +321,10 @@ void Jit::InvalidateCacheRange(u64 start_address, size_t length) {
 
 void Jit::Reset() {
     impl->Reset();
+}
+
+void Jit::ExceptionalExit() {
+    impl->ExceptionalExit();
 }
 
 void Jit::HaltExecution() {
