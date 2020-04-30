@@ -107,7 +107,7 @@ public:
     }
 
     void ExceptionalExit() {
-        if (conf.enable_ticks) {
+        if (conf.enable_ticks && !conf.yuzu_tick_hack) {
             const s64 ticks = jit_state.cycles_to_run - jit_state.cycles_remaining;
             conf.callbacks->AddTicks(ticks);
         }
@@ -247,7 +247,7 @@ private:
         const A64::TranslationOptions options{
             conf.define_unpredictable_behaviour,
             conf.hook_hint_instructions,
-            conf.enable_ticks,
+            conf.enable_ticks && !conf.yuzu_tick_hack,
         };
         IR::Block ir_block = A64::Translate(A64::LocationDescriptor{current_location}, get_code, options);
         Optimization::A64CallbackConfigPass(ir_block, conf);

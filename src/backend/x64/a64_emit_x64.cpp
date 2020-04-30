@@ -599,7 +599,7 @@ void A64EmitX64::EmitA64SetPC(A64EmitContext& ctx, IR::Inst* inst) {
 }
 
 void A64EmitX64::EmitA64CallSupervisor(A64EmitContext& ctx, IR::Inst* inst) {
-    if (conf.enable_ticks) {
+    if (conf.enable_ticks && !conf.yuzu_tick_hack) {
         ctx.reg_alloc.HostCall(nullptr);
         code.mov(code.ABI_PARAM2, qword[r15 + offsetof(A64JitState, cycles_to_run)]);
         code.sub(code.ABI_PARAM2, qword[r15 + offsetof(A64JitState, cycles_remaining)]);
@@ -618,7 +618,7 @@ void A64EmitX64::EmitA64CallSupervisor(A64EmitContext& ctx, IR::Inst* inst) {
     // The kernel would have to execute ERET to get here, which would clear exclusive state.
     code.mov(code.byte[r15 + offsetof(A64JitState, exclusive_state)], u8(0));
 
-    if (conf.enable_ticks) {
+    if (conf.enable_ticks && !conf.yuzu_tick_hack) {
         Devirtualize<&A64::UserCallbacks::GetTicksRemaining>(conf.callbacks).EmitCall(code);
         code.mov(qword[r15 + offsetof(A64JitState, cycles_to_run)], code.ABI_RETURN);
         code.mov(qword[r15 + offsetof(A64JitState, cycles_remaining)], code.ABI_RETURN);

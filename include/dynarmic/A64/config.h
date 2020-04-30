@@ -219,6 +219,9 @@ struct UserConfig {
     // If false, AddTicks and GetTicksRemaining will never be called, and we will run
     // indefinitely until HaltExecution is called in an appropriate callback.
     bool enable_ticks = true;
+
+    // Temporary option. To be replaced by the enable_ticks option above when possible.
+    bool yuzu_tick_hack = false;
 };
 
 } // namespace A64
