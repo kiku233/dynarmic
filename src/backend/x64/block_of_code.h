@@ -28,6 +28,7 @@ struct RunCodeCallbacks {
     std::unique_ptr<Callback> AddTicks;
     std::unique_ptr<Callback> GetTicksRemaining;
     bool enable_ticks;
+    bool yuzu_tick_hack;
 };
 
 class BlockOfCode final : public Xbyak::CodeGenerator {

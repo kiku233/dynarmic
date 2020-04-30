@@ -38,6 +38,7 @@ static RunCodeCallbacks GenRunCodeCallbacks(A32::UserConfig& config, CodePtr (*L
         std::make_unique<ArgCallback>(Devirtualize<&A32::UserCallbacks::AddTicks>(config.callbacks)),
         std::make_unique<ArgCallback>(Devirtualize<&A32::UserCallbacks::GetTicksRemaining>(config.callbacks)),
         config.enable_ticks,
+        false,
     };
 }
 

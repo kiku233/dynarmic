@@ -32,6 +32,7 @@ static RunCodeCallbacks GenRunCodeCallbacks(const A64::UserConfig& conf, CodePtr
         std::make_unique<ArgCallback>(Devirtualize<&A64::UserCallbacks::AddTicks>(conf.callbacks)),
         std::make_unique<ArgCallback>(Devirtualize<&A64::UserCallbacks::GetTicksRemaining>(conf.callbacks)),
         conf.enable_ticks,
+        conf.yuzu_tick_hack,
     };
 }
 
