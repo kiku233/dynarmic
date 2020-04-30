@@ -616,14 +616,7 @@ void A64EmitX64::EmitA64CallSupervisor(A64EmitContext& ctx, IR::Inst* inst) {
             code.mov(param[0], imm);
         });
     // The kernel would have to execute ERET to get here, which would clear exclusive state.
-    if (conf.global_monitor) {
-        code.mov(code.ABI_PARAM1, reinterpret_cast<u64>(&conf));
-        code.CallLambda(
-            [](A64::UserConfig& conf) {
-                return conf.global_monitor->ClearProcessor(conf.processor_id);
-            }
-        );
-    }
+    code.mov(code.byte[r15 + offsetof(A64JitState, exclusive_state)], u8(0));
 
     if (conf.enable_ticks) {
         Devirtualize<&A64::UserCallbacks::GetTicksRemaining>(conf.callbacks).EmitCall(code);
@@ -722,14 +715,8 @@ void A64EmitX64::EmitA64SetTPIDR(A64EmitContext& ctx, IR::Inst* inst) {
     }
 }
 
-void A64EmitX64::EmitA64ClearExclusive(A64EmitContext& ctx, IR::Inst*) {
-    ctx.reg_alloc.HostCall(nullptr);
-    code.mov(code.ABI_PARAM1, reinterpret_cast<u64>(&conf));
-    code.CallLambda(
-        [](A64::UserConfig& conf) {
-            return conf.global_monitor->ClearProcessor(conf.processor_id);
-        }
-    );
+void A64EmitX64::EmitA64ClearExclusive(A64EmitContext&, IR::Inst*) {
+    code.mov(code.byte[r15 + offsetof(A64JitState, exclusive_state)], u8(0));
 }
 
 namespace {
@@ -959,6 +946,7 @@ void A64EmitX64::EmitA64ReadMemory128(A64EmitContext& ctx, IR::Inst* inst) {
 void A64EmitX64::EmitA64ExclusiveReadMemory8(A64EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     ctx.reg_alloc.HostCall(inst, {}, args[0]);
+    code.mov(code.byte[r15 + offsetof(A64JitState, exclusive_state)], u8(1));
     code.mov(code.ABI_PARAM1, reinterpret_cast<u64>(&conf));
     code.CallLambda(
         [](A64::UserConfig& conf, u64 vaddr) -> u8 {
@@ -972,6 +960,7 @@ void A64EmitX64::EmitA64ExclusiveReadMemory8(A64EmitContext& ctx, IR::Inst* inst
 void A64EmitX64::EmitA64ExclusiveReadMemory16(A64EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     ctx.reg_alloc.HostCall(inst, {}, args[0]);
+    code.mov(code.byte[r15 + offsetof(A64JitState, exclusive_state)], u8(1));
     code.mov(code.ABI_PARAM1, reinterpret_cast<u64>(&conf));
     code.CallLambda(
         [](A64::UserConfig& conf, u64 vaddr) -> u16 {
@@ -985,6 +974,7 @@ void A64EmitX64::EmitA64ExclusiveReadMemory16(A64EmitContext& ctx, IR::Inst* ins
 void A64EmitX64::EmitA64ExclusiveReadMemory32(A64EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     ctx.reg_alloc.HostCall(inst, {}, args[0]);
+    code.mov(code.byte[r15 + offsetof(A64JitState, exclusive_state)], u8(1));
     code.mov(code.ABI_PARAM1, reinterpret_cast<u64>(&conf));
     code.CallLambda(
         [](A64::UserConfig& conf, u64 vaddr) -> u32 {
@@ -998,6 +988,7 @@ void A64EmitX64::EmitA64ExclusiveReadMemory32(A64EmitContext& ctx, IR::Inst* ins
 void A64EmitX64::EmitA64ExclusiveReadMemory64(A64EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     ctx.reg_alloc.HostCall(inst, {}, args[0]);
+    code.mov(code.byte[r15 + offsetof(A64JitState, exclusive_state)], u8(1));
     code.mov(code.ABI_PARAM1, reinterpret_cast<u64>(&conf));
     code.CallLambda(
         [](A64::UserConfig& conf, u64 vaddr) -> u64 {
@@ -1115,6 +1106,10 @@ void A64EmitX64::EmitExclusiveWrite(A64EmitContext& ctx, IR::Inst* inst, size_t 
 
     Xbyak::Label end;
 
+    code.mov(code.ABI_RETURN, u32(1));
+    code.cmp(code.byte[r15 + offsetof(A64JitState, exclusive_state)], u8(0));
+    code.je(end);
+    code.mov(code.byte[r15 + offsetof(A64JitState, exclusive_state)], u8(0));
     code.mov(code.ABI_PARAM1, reinterpret_cast<u64>(&conf));
     switch (bitsize) {
     case 8:

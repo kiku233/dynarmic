@@ -202,7 +202,7 @@ public:
     }
 
     void ClearExclusiveState() {
-        conf.global_monitor->ClearProcessor(conf.processor_id);
+        jit_state.exclusive_state = false;
     }
 
     bool IsExecuting() const {
