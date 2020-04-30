@@ -7,9 +7,12 @@
 
 #include <dynarmic/A64/exclusive_monitor.h>
 #include "common/assert.h"
+#include "common/common_types.h"
 
 namespace Dynarmic {
 namespace A64 {
+
+static constexpr u64 INVALID_ADDRESS = 0xDEADDEADDEADDEADull;
 
 ExclusiveMonitor::ExclusiveMonitor(size_t processor_count) : state(processor_count) {
     Unlock();
@@ -28,7 +31,7 @@ bool ExclusiveMonitor::CheckAndClear(size_t processor_id, VAddr address, size_t 
 
     for (State& other_s : state) {
         if (other_s.address == address) {
-            other_s = {};
+            other_s.address = INVALID_ADDRESS;
         }
     }
     return true;
@@ -37,14 +40,14 @@ bool ExclusiveMonitor::CheckAndClear(size_t processor_id, VAddr address, size_t 
 void ExclusiveMonitor::Clear() {
     Lock();
     for (State& s : state) {
-        s = {};
+        s.address = INVALID_ADDRESS;
     }
     Unlock();
 }
 
 void ExclusiveMonitor::ClearProcessor(size_t processor_id) {
     Lock();
-    state[processor_id] = {};
+    state[processor_id].address = INVALID_ADDRESS;
     Unlock();
 }
 
