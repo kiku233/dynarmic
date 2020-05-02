@@ -113,7 +113,6 @@ public:
             conf.callbacks->AddTicks(ticks);
         }
         PerformRequestedCacheInvalidation();
-        jit_state.halt_requested = false;
         is_executing = false;
     }
 

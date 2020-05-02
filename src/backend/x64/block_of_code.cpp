@@ -238,7 +238,7 @@ void BlockOfCode::GenRunCode(std::function<void(BlockOfCode&)> rcp) {
     return_from_run_code[MXCSR_ALREADY_EXITED | FORCE_RETURN] = getCurr<const void*>();
     L(return_to_caller_mxcsr_already_exited);
 
-    if (cb.enable_ticks && !cb.yuzu_tick_hack) {
+    if (cb.enable_ticks) {
         cb.AddTicks->EmitCall(*this, [this](RegList param) {
             mov(param[0], qword[r15 + jsi.offsetof_cycles_to_run]);
             sub(param[0], qword[r15 + jsi.offsetof_cycles_remaining]);

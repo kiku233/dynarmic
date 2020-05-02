@@ -110,6 +110,7 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
     if (conf.enable_ticks) {
         EmitAddCycles(block.CycleCount());
     }
+    ASSERT(!ctx.IsSingleStep());
     EmitX64::EmitTerminal(block.GetTerminal(), ctx.Location().SetSingleStepping(false), ctx.IsSingleStep());
     code.int3();
 

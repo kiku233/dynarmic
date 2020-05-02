@@ -5,12 +5,11 @@
 
 #pragma once
 
-#include <array>
 #include <atomic>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <type_traits>
 #include <vector>
 
 namespace Dynarmic {
@@ -32,17 +31,12 @@ public:
     /// processor processor_id.
     template <typename T, typename Function>
     T ReadAndMark(size_t processor_id, VAddr address, Function op) {
-        static_assert(std::is_trivially_copyable_v<T>);
+        const VAddr masked_address = address & RESERVATION_GRANULE_MASK;
 
         Lock();
-
-        const T value = op();
-        State& s = state[processor_id];
-        s.size = sizeof(T);
-        s.address = address;
-        s.value = {};
-        std::memcpy(s.value.data(), &value, sizeof(T));
-
+        exclusive_addresses[processor_id] = masked_address;
+        T value = op();
+        std::memcpy(exclusive_values[processor_id].data(), &value, sizeof(T));
         Unlock();
         return value;
     }
@@ -53,24 +47,27 @@ public:
     /// contain [address, address+size).
     template <typename T, typename Function>
     bool DoExclusiveOperation(size_t processor_id, VAddr address, Function op) {
-        static_assert(std::is_trivially_copyable_v<T>);
+        const size_t size = sizeof(T);
 
-        Lock();
-        if (!CheckAndClear(processor_id, address, sizeof(T))) {
+        if (!CheckAndClear(processor_id, address, size)) {
             return false;
         }
 
-        T value;
-        std::memcpy(&value, state[processor_id].value.data(), sizeof(T));
-        const bool result = op(value);
+        T saved_value;
+        std::memcpy(&saved_value, exclusive_values[processor_id].data(), sizeof(T));
+
+        if (!op(saved_value)) {
+            Unlock();
+            return false;
+        }
 
         Unlock();
-        return result;
+        return true;
     }
 
     /// Unmark everything.
     void Clear();
-    /// Unmark specific processor.
+    /// Unmark processor id
     void ClearProcessor(size_t processor_id);
 
 private:
@@ -79,14 +76,11 @@ private:
     void Lock();
     void Unlock();
 
-    struct State {
-        size_t size = 0;
-        VAddr address;
-        Vector value;
-    };
-
+    static constexpr VAddr RESERVATION_GRANULE_MASK = 0xFFFF'FFFF'FFFF'FFFFull;
+    static constexpr VAddr INVALID_EXCLUSIVE_ADDRESS = 0xDEAD'DEAD'DEAD'DEADull;
     std::atomic_flag is_locked;
-    std::vector<State> state;
+    std::vector<VAddr> exclusive_addresses;
+    std::vector<Vector> exclusive_values;
 };
 
 } // namespace A64
