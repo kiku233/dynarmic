@@ -24,7 +24,7 @@ size_t ExclusiveMonitor::GetProcessorCount() const {
 
 bool ExclusiveMonitor::CheckAndClear(size_t processor_id, VAddr address, size_t size) {
     State& s = state[processor_id];
-    if (s.address != address || s.size != size) {
+    if (s.address != address) {
         Unlock();
         return false;
     }

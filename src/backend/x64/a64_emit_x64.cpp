@@ -1005,6 +1005,7 @@ void A64EmitX64::EmitA64ExclusiveReadMemory128(A64EmitContext& ctx, IR::Inst* in
     ctx.reg_alloc.EndOfAllocScope();
     ctx.reg_alloc.HostCall(nullptr, {}, args[0]);
 
+    code.mov(code.byte[r15 + offsetof(A64JitState, exclusive_state)], u8(1));
     code.mov(code.ABI_PARAM1, reinterpret_cast<u64>(&conf));
     code.sub(rsp, 16 + ABI_SHADOW_SPACE);
     code.lea(code.ABI_PARAM3, ptr[rsp + ABI_SHADOW_SPACE]);
