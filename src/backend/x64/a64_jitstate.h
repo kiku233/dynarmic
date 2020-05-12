@@ -9,7 +9,6 @@
 
 #include <xbyak.h>
 
-#include "backend/x64/nzcv_util.h"
 #include "common/common_types.h"
 #include "frontend/A64/location_descriptor.h"
 
@@ -34,10 +33,10 @@ struct A64JitState {
     u32 cpsr_nzcv = 0;
 
     u32 GetPstate() const {
-        return NZCV::FromX64(cpsr_nzcv);
+        return cpsr_nzcv;
     }
     void SetPstate(u32 new_pstate) {
-        cpsr_nzcv = NZCV::ToX64(new_pstate);
+        cpsr_nzcv = new_pstate & 0xF0000000;
     }
 
     alignas(16) std::array<u64, 64> vec{}; // Extension registers.

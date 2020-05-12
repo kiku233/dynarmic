@@ -5,7 +5,6 @@
 
 #include "backend/x64/a32_jitstate.h"
 #include "backend/x64/block_of_code.h"
-#include "backend/x64/nzcv_util.h"
 #include "common/assert.h"
 #include "common/bit_util.h"
 #include "common/common_types.h"
@@ -46,14 +45,14 @@ namespace Dynarmic::Backend::X64 {
  */
 
 u32 A32JitState::Cpsr() const {
-    DEBUG_ASSERT((cpsr_nzcv & ~NZCV::x64_mask) == 0);
+    DEBUG_ASSERT((cpsr_nzcv & ~0xF0000000) == 0);
     DEBUG_ASSERT((cpsr_q & ~1) == 0);
     DEBUG_ASSERT((cpsr_jaifm & ~0x010001DF) == 0);
 
     u32 cpsr = 0;
 
     // NZCV flags
-    cpsr |= NZCV::FromX64(cpsr_nzcv);
+    cpsr |= cpsr_nzcv;
     // Q flag
     cpsr |= cpsr_q ? 1 << 27 : 0;
     // GE flags
@@ -75,7 +74,7 @@ u32 A32JitState::Cpsr() const {
 
 void A32JitState::SetCpsr(u32 cpsr) {
     // NZCV flags
-    cpsr_nzcv = NZCV::ToX64(cpsr);
+    cpsr_nzcv = cpsr & 0xF0000000;
     // Q flag
     cpsr_q = Common::Bit<27>(cpsr) ? 1 : 0;
     // GE flags

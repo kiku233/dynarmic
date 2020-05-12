@@ -371,13 +371,8 @@ struct ArmTranslatorVisitor final {
     bool vfp_VNMLA(Cond cond, bool D, size_t Vn, size_t Vd, bool sz, bool N, bool M, size_t Vm);
     bool vfp_VNMLS(Cond cond, bool D, size_t Vn, size_t Vd, bool sz, bool N, bool M, size_t Vm);
     bool vfp_VDIV(Cond cond, bool D, size_t Vn, size_t Vd, bool sz, bool N, bool M, size_t Vm);
-    bool vfp_VFNMS(Cond cond, bool D, size_t Vn, size_t Vd, bool sz, bool N, bool M, size_t Vm);
-    bool vfp_VFNMA(Cond cond, bool D, size_t Vn, size_t Vd, bool sz, bool N, bool M, size_t Vm);
-    bool vfp_VFMA(Cond cond, bool D, size_t Vn, size_t Vd, bool sz, bool N, bool M, size_t Vm);
-    bool vfp_VFMS(Cond cond, bool D, size_t Vn, size_t Vd, bool sz, bool N, bool M, size_t Vm);
 
     // Floating-point move instructions
-    bool vfp_VMOV_imm(Cond cond, bool D, Imm<4> imm4H, size_t Vd, bool sz, Imm<4> imm4L);
     bool vfp_VMOV_u32_f64(Cond cond, size_t Vd, Reg t, bool D);
     bool vfp_VMOV_f64_u32(Cond cond, size_t Vn, Reg t, bool N);
     bool vfp_VMOV_u32_f32(Cond cond, size_t Vn, Reg t, bool N);
@@ -392,10 +387,8 @@ struct ArmTranslatorVisitor final {
     bool vfp_VABS(Cond cond, bool D, size_t Vd, bool sz, bool M, size_t Vm);
     bool vfp_VNEG(Cond cond, bool D, size_t Vd, bool sz, bool M, size_t Vm);
     bool vfp_VSQRT(Cond cond, bool D, size_t Vd, bool sz, bool M, size_t Vm);
-    bool vfp_VCVTB(Cond cond, bool D, bool op, size_t Vd, bool sz, bool M, size_t Vm);
-    bool vfp_VCVTT(Cond cond, bool D, bool op, size_t Vd, bool sz, bool M, size_t Vm);
     bool vfp_VCVT_f_to_f(Cond cond, bool D, size_t Vd, bool sz, bool M, size_t Vm);
-    bool vfp_VCVT_from_int(Cond cond, bool D, size_t Vd, bool sz, bool is_signed, bool M, size_t Vm);
+    bool vfp_VCVT_to_float(Cond cond, bool D, size_t Vd, bool sz, bool is_signed, bool M, size_t Vm);
     bool vfp_VCVT_to_u32(Cond cond, bool D, size_t Vd, bool sz, bool round_towards_zero, bool M, size_t Vm);
     bool vfp_VCVT_to_s32(Cond cond, bool D, size_t Vd, bool sz, bool round_towards_zero, bool M, size_t Vm);
     bool vfp_VCMP(Cond cond, bool D, size_t Vd, bool sz, bool E, bool M, size_t Vm);

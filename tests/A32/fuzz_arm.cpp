@@ -107,8 +107,6 @@ u32 GenRandomInst(u32 pc, bool is_last_inst) {
             "arm_CPS", "arm_RFE", "arm_SRS",
             // Undefined
             "arm_UDF",
-            // FPSCR is inaccurate
-            "vfp_VMRS",
         };
 
         for (const auto& [fn, bitstring] : list) {
@@ -125,10 +123,9 @@ u32 GenRandomInst(u32 pc, bool is_last_inst) {
         const size_t index = RandInt<size_t>(0, instructions.generators.size() - 1);
         const u32 inst = instructions.generators[index].Generate();
 
-        if ((instructions.generators[index].Mask() & 0xF0000000) == 0 && (inst & 0xF0000000) == 0xF0000000) {
+        if (std::any_of(instructions.invalid.begin(), instructions.invalid.end(), [inst](const auto& invalid) { return invalid.Match(inst); })) {
             continue;
         }
-
         if (ShouldTestInst(inst, pc, is_last_inst)) {
             return inst;
         }
