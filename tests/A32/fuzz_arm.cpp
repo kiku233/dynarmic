@@ -77,6 +77,7 @@ u32 GenRandomInst(u32 pc, bool is_last_inst) {
         const std::vector<std::tuple<std::string, const char*>> list {
 #define INST(fn, name, bitstring) {#fn, bitstring},
 #include "frontend/A32/decoder/arm.inc"
+#include "frontend/A32/decoder/asimd.inc"
 #include "frontend/A32/decoder/vfp.inc"
 #undef INST
         };
@@ -90,8 +91,8 @@ u32 GenRandomInst(u32 pc, bool is_last_inst) {
             "arm_LDRBT", "arm_LDRBT", "arm_LDRHT", "arm_LDRHT", "arm_LDRSBT", "arm_LDRSBT", "arm_LDRSHT", "arm_LDRSHT", "arm_LDRT", "arm_LDRT",
             "arm_STRBT", "arm_STRBT", "arm_STRHT", "arm_STRHT", "arm_STRT", "arm_STRT",
             // Exclusive load/stores
-            "arm_LDREXB", "arm_LDREXD", "arm_LDREXH", "arm_LDREX",
-            "arm_STREXB", "arm_STREXD", "arm_STREXH", "arm_STREX",
+            "arm_LDREXB", "arm_LDREXD", "arm_LDREXH", "arm_LDREX", "arm_LDAEXB", "arm_LDAEXD", "arm_LDAEXH", "arm_LDAEX",
+            "arm_STREXB", "arm_STREXD", "arm_STREXH", "arm_STREX", "arm_STLEXB", "arm_STLEXD", "arm_STLEXH", "arm_STLEX",
             "arm_SWP", "arm_SWPB",
             // Elevated load/store multiple instructions.
             "arm_LDM_eret", "arm_LDM_usr",
@@ -107,6 +108,8 @@ u32 GenRandomInst(u32 pc, bool is_last_inst) {
             "arm_CPS", "arm_RFE", "arm_SRS",
             // Undefined
             "arm_UDF",
+            // FPSCR is inaccurate
+            "vfp_VMRS",
         };
 
         for (const auto& [fn, bitstring] : list) {
@@ -123,9 +126,10 @@ u32 GenRandomInst(u32 pc, bool is_last_inst) {
         const size_t index = RandInt<size_t>(0, instructions.generators.size() - 1);
         const u32 inst = instructions.generators[index].Generate();
 
-        if (std::any_of(instructions.invalid.begin(), instructions.invalid.end(), [inst](const auto& invalid) { return invalid.Match(inst); })) {
+        if ((instructions.generators[index].Mask() & 0xF0000000) == 0 && (inst & 0xF0000000) == 0xF0000000) {
             continue;
         }
+
         if (ShouldTestInst(inst, pc, is_last_inst)) {
             return inst;
         }

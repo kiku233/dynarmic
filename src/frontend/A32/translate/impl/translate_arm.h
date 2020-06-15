@@ -341,16 +341,30 @@ struct ArmTranslatorVisitor final {
 
     // Synchronization Primitive instructions
     bool arm_CLREX();
-    bool arm_LDREX(Cond cond, Reg n, Reg t);
-    bool arm_LDREXB(Cond cond, Reg n, Reg t);
-    bool arm_LDREXD(Cond cond, Reg n, Reg t);
-    bool arm_LDREXH(Cond cond, Reg n, Reg t);
-    bool arm_STREX(Cond cond, Reg n, Reg d, Reg t);
-    bool arm_STREXB(Cond cond, Reg n, Reg d, Reg t);
-    bool arm_STREXD(Cond cond, Reg n, Reg d, Reg t);
-    bool arm_STREXH(Cond cond, Reg n, Reg d, Reg t);
     bool arm_SWP(Cond cond, Reg n, Reg t, Reg t2);
     bool arm_SWPB(Cond cond, Reg n, Reg t, Reg t2);
+    bool arm_STL(Cond cond, Reg n, Reg t);
+    bool arm_STLEX(Cond cond, Reg n, Reg d, Reg t);
+    bool arm_STREX(Cond cond, Reg n, Reg d, Reg t);
+    bool arm_LDA(Cond cond, Reg n, Reg t);
+    bool arm_LDAEX(Cond cond, Reg n, Reg t);
+    bool arm_LDREX(Cond cond, Reg n, Reg t);
+    bool arm_STLEXD(Cond cond, Reg n, Reg d, Reg t);
+    bool arm_STREXD(Cond cond, Reg n, Reg d, Reg t);
+    bool arm_LDAEXD(Cond cond, Reg n, Reg t);
+    bool arm_LDREXD(Cond cond, Reg n, Reg t);
+    bool arm_STLB(Cond cond, Reg n, Reg t);
+    bool arm_STLEXB(Cond cond, Reg n, Reg d, Reg t);
+    bool arm_STREXB(Cond cond, Reg n, Reg d, Reg t);
+    bool arm_LDAB(Cond cond, Reg n, Reg t);
+    bool arm_LDAEXB(Cond cond, Reg n, Reg t);
+    bool arm_LDREXB(Cond cond, Reg n, Reg t);
+    bool arm_STLH(Cond cond, Reg n, Reg t);
+    bool arm_STLEXH(Cond cond, Reg n, Reg d, Reg t);
+    bool arm_STREXH(Cond cond, Reg n, Reg d, Reg t);
+    bool arm_LDAH(Cond cond, Reg n, Reg t);
+    bool arm_LDAEXH(Cond cond, Reg n, Reg t);
+    bool arm_LDREXH(Cond cond, Reg n, Reg t);
 
     // Status register access instructions
     bool arm_CPS();
@@ -371,8 +385,13 @@ struct ArmTranslatorVisitor final {
     bool vfp_VNMLA(Cond cond, bool D, size_t Vn, size_t Vd, bool sz, bool N, bool M, size_t Vm);
     bool vfp_VNMLS(Cond cond, bool D, size_t Vn, size_t Vd, bool sz, bool N, bool M, size_t Vm);
     bool vfp_VDIV(Cond cond, bool D, size_t Vn, size_t Vd, bool sz, bool N, bool M, size_t Vm);
+    bool vfp_VFNMS(Cond cond, bool D, size_t Vn, size_t Vd, bool sz, bool N, bool M, size_t Vm);
+    bool vfp_VFNMA(Cond cond, bool D, size_t Vn, size_t Vd, bool sz, bool N, bool M, size_t Vm);
+    bool vfp_VFMA(Cond cond, bool D, size_t Vn, size_t Vd, bool sz, bool N, bool M, size_t Vm);
+    bool vfp_VFMS(Cond cond, bool D, size_t Vn, size_t Vd, bool sz, bool N, bool M, size_t Vm);
 
     // Floating-point move instructions
+    bool vfp_VMOV_imm(Cond cond, bool D, Imm<4> imm4H, size_t Vd, bool sz, Imm<4> imm4L);
     bool vfp_VMOV_u32_f64(Cond cond, size_t Vd, Reg t, bool D);
     bool vfp_VMOV_f64_u32(Cond cond, size_t Vn, Reg t, bool N);
     bool vfp_VMOV_u32_f32(Cond cond, size_t Vn, Reg t, bool N);
@@ -387,8 +406,10 @@ struct ArmTranslatorVisitor final {
     bool vfp_VABS(Cond cond, bool D, size_t Vd, bool sz, bool M, size_t Vm);
     bool vfp_VNEG(Cond cond, bool D, size_t Vd, bool sz, bool M, size_t Vm);
     bool vfp_VSQRT(Cond cond, bool D, size_t Vd, bool sz, bool M, size_t Vm);
+    bool vfp_VCVTB(Cond cond, bool D, bool op, size_t Vd, bool sz, bool M, size_t Vm);
+    bool vfp_VCVTT(Cond cond, bool D, bool op, size_t Vd, bool sz, bool M, size_t Vm);
     bool vfp_VCVT_f_to_f(Cond cond, bool D, size_t Vd, bool sz, bool M, size_t Vm);
-    bool vfp_VCVT_to_float(Cond cond, bool D, size_t Vd, bool sz, bool is_signed, bool M, size_t Vm);
+    bool vfp_VCVT_from_int(Cond cond, bool D, size_t Vd, bool sz, bool is_signed, bool M, size_t Vm);
     bool vfp_VCVT_to_u32(Cond cond, bool D, size_t Vd, bool sz, bool round_towards_zero, bool M, size_t Vm);
     bool vfp_VCVT_to_s32(Cond cond, bool D, size_t Vd, bool sz, bool round_towards_zero, bool M, size_t Vm);
     bool vfp_VCMP(Cond cond, bool D, size_t Vd, bool sz, bool E, bool M, size_t Vm);
@@ -407,6 +428,30 @@ struct ArmTranslatorVisitor final {
     bool vfp_VSTM_a2(Cond cond, bool p, bool u, bool D, bool w, Reg n, size_t Vd, Imm<8> imm8);
     bool vfp_VLDM_a1(Cond cond, bool p, bool u, bool D, bool w, Reg n, size_t Vd, Imm<8> imm8);
     bool vfp_VLDM_a2(Cond cond, bool p, bool u, bool D, bool w, Reg n, size_t Vd, Imm<8> imm8);
+
+    // Advanced SIMD one register, modified immediate
+    bool asimd_VMOV_imm(Imm<1> a, bool D, Imm<1> b, Imm<1> c, Imm<1> d, size_t Vd,
+                        Imm<4> cmode, bool Q, bool op, Imm<1> e, Imm<1> f, Imm<1> g, Imm<1> h);
+
+    // Advanced SIMD three register variants
+    bool asimd_VHADD(bool U, bool D, size_t sz, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
+    bool asimd_VRHADD(bool U, bool D, size_t sz, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
+    bool asimd_VAND_reg(bool D, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
+    bool asimd_VBIC_reg(bool D, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
+    bool asimd_VORR_reg(bool D, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
+    bool asimd_VORN_reg(bool D, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
+    bool asimd_VEOR_reg(bool D, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
+    bool asimd_VBSL(bool D, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
+    bool asimd_VBIT(bool D, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
+    bool asimd_VBIF(bool D, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
+    bool asimd_VHSUB(bool U, bool D, size_t sz, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
+
+    // Advanced SIMD two register, miscellaneous
+    bool asimd_VSWP(bool D, size_t Vd, bool Q, bool M, size_t Vm);
+
+    // Advanced SIMD load/store structures
+    bool v8_VST_multiple(bool D, Reg n, size_t Vd, Imm<4> type, size_t sz, size_t align, Reg m);
+    bool v8_VLD_multiple(bool D, Reg n, size_t Vd, Imm<4> type, size_t sz, size_t align, Reg m);
 };
 
 } // namespace Dynarmic::A32

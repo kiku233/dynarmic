@@ -76,6 +76,7 @@ add_library(dynarmic
     frontend/A64/types.h
     frontend/decoder/decoder_detail.h
     frontend/decoder/matcher.h
+    frontend/imm.cpp
     frontend/imm.h
     frontend/ir/basic_block.cpp
     frontend/ir/basic_block.h
@@ -106,6 +107,8 @@ if ("A32" IN_LIST DYNARMIC_FRONTENDS)
     target_sources(dynarmic PRIVATE
         frontend/A32/decoder/arm.h
         frontend/A32/decoder/arm.inc
+        frontend/A32/decoder/asimd.h
+        frontend/A32/decoder/asimd.inc
         frontend/A32/decoder/thumb16.h
         frontend/A32/decoder/thumb32.h
         frontend/A32/decoder/vfp.h
@@ -120,6 +123,10 @@ if ("A32" IN_LIST DYNARMIC_FRONTENDS)
         frontend/A32/location_descriptor.cpp
         frontend/A32/location_descriptor.h
         frontend/A32/PSR.h
+        frontend/A32/translate/impl/asimd_load_store_structures.cpp
+        frontend/A32/translate/impl/asimd_one_reg_modified_immediate.cpp
+        frontend/A32/translate/impl/asimd_three_same.cpp
+        frontend/A32/translate/impl/asimd_two_regs_misc.cpp
         frontend/A32/translate/impl/barrier.cpp
         frontend/A32/translate/impl/branch.cpp
         frontend/A32/translate/impl/coprocessor.cpp
@@ -333,6 +340,7 @@ target_link_libraries(dynarmic
         boost
         fmt::fmt
         mp
+        tsl::robin_map
         xbyak
         $<$<BOOL:DYNARMIC_USE_LLVM>:${llvm_libs}>
 )

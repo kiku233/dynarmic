@@ -1111,6 +1111,54 @@ public:
     std::string arm_CLREX() {
         return "clrex";
     }
+    std::string arm_SWP(Cond cond, Reg n, Reg t, Reg t2) {
+        return fmt::format("swp{} {}, {}, [{}]", CondToString(cond), t, t2, n);
+    }
+    std::string arm_SWPB(Cond cond, Reg n, Reg t, Reg t2) {
+        return fmt::format("swpb{} {}, {}, [{}]", CondToString(cond), t, t2, n);
+    }
+    std::string arm_LDA(Cond cond, Reg n, Reg t) {
+        return fmt::format("lda{} {}, [{}]", CondToString(cond), t, n);
+    }
+    std::string arm_LDAB(Cond cond, Reg n, Reg t) {
+        return fmt::format("ldab{} {}, [{}]", CondToString(cond), t, n);
+    }
+    std::string arm_LDAH(Cond cond, Reg n, Reg t) {
+        return fmt::format("ldah{} {}, [{}]", CondToString(cond), t, n);
+    }
+    std::string arm_LDAEX(Cond cond, Reg n, Reg t) {
+        return fmt::format("ldaex{} {}, [{}]", CondToString(cond), t, n);
+    }
+    std::string arm_LDAEXB(Cond cond, Reg n, Reg t) {
+        return fmt::format("ldaexb{} {}, [{}]", CondToString(cond), t, n);
+    }
+    std::string arm_LDAEXD(Cond cond, Reg n, Reg t) {
+        return fmt::format("ldaexd{} {}, {}, [{}]", CondToString(cond), t, t+1, n);
+    }
+    std::string arm_LDAEXH(Cond cond, Reg n, Reg t) {
+        return fmt::format("ldaexh{} {}, [{}]", CondToString(cond), t, n);
+    }
+    std::string arm_STL(Cond cond, Reg n, Reg t) {
+        return fmt::format("stl{} {}, [{}]", CondToString(cond), t, n);
+    }
+    std::string arm_STLB(Cond cond, Reg n, Reg t) {
+        return fmt::format("stlb{} {}, [{}]", CondToString(cond), t, n);
+    }
+    std::string arm_STLH(Cond cond, Reg n, Reg t) {
+        return fmt::format("stlh{} {}, [{}]", CondToString(cond), t, n);
+    }
+    std::string arm_STLEX(Cond cond, Reg n, Reg d, Reg m) {
+        return fmt::format("stlex{} {}, {}, [{}]", CondToString(cond), d, m, n);
+    }
+    std::string arm_STLEXB(Cond cond, Reg n, Reg d, Reg m) {
+        return fmt::format("stlexb{} {}, {}, [{}]", CondToString(cond), d, m, n);
+    }
+    std::string arm_STLEXD(Cond cond, Reg n, Reg d, Reg m) {
+        return fmt::format("stlexd{} {}, {}, {}, [{}]", CondToString(cond), d, m, m+1, n);
+    }
+    std::string arm_STLEXH(Cond cond, Reg n, Reg d, Reg m) {
+        return fmt::format("stlexh{} {}, {}, [{}]", CondToString(cond), d, m, n);
+    }
     std::string arm_LDREX(Cond cond, Reg n, Reg d) {
         return fmt::format("ldrex{} {}, [{}]", CondToString(cond), d, n);
     }
@@ -1134,12 +1182,6 @@ public:
     }
     std::string arm_STREXH(Cond cond, Reg n, Reg d, Reg m) {
         return fmt::format("strexh{} {}, {}, [{}]", CondToString(cond), d, m, n);
-    }
-    std::string arm_SWP(Cond cond, Reg n, Reg t, Reg t2) {
-        return fmt::format("swp{} {}, {}, [{}]", CondToString(cond), t, t2, n);
-    }
-    std::string arm_SWPB(Cond cond, Reg n, Reg t, Reg t2) {
-        return fmt::format("swpb{} {}, {}, [{}]", CondToString(cond), t, t2, n);
     }
 
     // Status register access instructions
@@ -1216,6 +1258,40 @@ public:
         return fmt::format("vdiv{}.{} {}, {}, {}", CondToString(cond), sz ? "f64" : "f32", FPRegStr(sz, Vd, D), FPRegStr(sz, Vn, N), FPRegStr(sz, Vm, M));
     }
 
+    std::string vfp_VFNMS(Cond cond, bool D, size_t Vn, size_t Vd, bool sz, bool N, bool M, size_t Vm) {
+        return fmt::format("vfnms{}.{} {}, {}, {}", CondToString(cond), sz ? "f64" : "f32", FPRegStr(sz, Vd, D), FPRegStr(sz, Vn, N), FPRegStr(sz, Vm, M));
+    }
+
+    std::string vfp_VFNMA(Cond cond, bool D, size_t Vn, size_t Vd, bool sz, bool N, bool M, size_t Vm) {
+        return fmt::format("vfnma{}.{} {}, {}, {}", CondToString(cond), sz ? "f64" : "f32", FPRegStr(sz, Vd, D), FPRegStr(sz, Vn, N), FPRegStr(sz, Vm, M));
+    }
+
+    std::string vfp_VFMS(Cond cond, bool D, size_t Vn, size_t Vd, bool sz, bool N, bool M, size_t Vm) {
+        return fmt::format("vfms{}.{} {}, {}, {}", CondToString(cond), sz ? "f64" : "f32", FPRegStr(sz, Vd, D), FPRegStr(sz, Vn, N), FPRegStr(sz, Vm, M));
+    }
+
+    std::string vfp_VFMA(Cond cond, bool D, size_t Vn, size_t Vd, bool sz, bool N, bool M, size_t Vm) {
+        return fmt::format("vfma{}.{} {}, {}, {}", CondToString(cond), sz ? "f64" : "f32", FPRegStr(sz, Vd, D), FPRegStr(sz, Vn, N), FPRegStr(sz, Vm, M));
+    }
+
+    std::string vfp_VMOV_imm(Cond cond, bool D, Imm<4> imm4H, size_t Vd, bool sz, Imm<4> imm4L) {
+        const auto imm8 = concatenate(imm4H, imm4L);
+
+        if (sz) {
+            const u64 sign = static_cast<u64>(imm8.Bit<7>());
+            const u64 exp = (imm8.Bit<6>() ? 0x3FC : 0x400) | imm8.Bits<4, 5, u64>();
+            const u64 fract = imm8.Bits<0, 3, u64>() << 48;
+            const u64 immediate = (sign << 63) | (exp << 52) | fract;
+            return fmt::format("vmov{}.f64 {}, #0x{:016x}", CondToString(cond), FPRegStr(sz, Vd, D), immediate);
+        } else {
+            const u32 sign = static_cast<u32>(imm8.Bit<7>());
+            const u32 exp = (imm8.Bit<6>() ? 0x7C : 0x80) | imm8.Bits<4, 5>();
+            const u32 fract = imm8.Bits<0, 3>() << 19;
+            const u32 immediate = (sign << 31) | (exp << 23) | fract;
+            return fmt::format("vmov{}.f32 {}, #0x{:08x}", CondToString(cond), FPRegStr(sz, Vd, D), immediate);
+        }
+    }
+
     std::string vfp_VMOV_u32_f64(Cond cond, size_t Vd, Reg t, bool D){
         return fmt::format("vmov{}.32 {}, {}", CondToString(cond), FPRegStr(true, Vd, D), t);
     }
@@ -1264,11 +1340,25 @@ public:
         return fmt::format("vsqrt{}.{} {}, {}", CondToString(cond), sz ? "f64" : "f32", FPRegStr(sz, Vd, D), FPRegStr(sz, Vm, M));
     }
 
+    std::string vfp_VCVTB(Cond cond, bool D, bool op, size_t Vd, bool sz, bool M, size_t Vm) {
+        const bool convert_from_half = !op;
+        const char* const to = convert_from_half ? (sz ? "f64" : "f32") : "f16";
+        const char* const from = convert_from_half ? "f16" : (sz ? "f64" : "f32");
+        return fmt::format("vcvtb{}.{}.{} {}, {}", CondToString(cond), to, from, FPRegStr(convert_from_half ? sz : false, Vd, D), FPRegStr(convert_from_half ? false : sz, Vm, M));
+    }
+
+    std::string vfp_VCVTT(Cond cond, bool D, bool op, size_t Vd, bool sz, bool M, size_t Vm) {
+        const bool convert_from_half = !op;
+        const char* const to = convert_from_half ? (sz ? "f64" : "f32") : "f16";
+        const char* const from = convert_from_half ? "f16" : (sz ? "f64" : "f32");
+        return fmt::format("vcvtt{}.{}.{} {}, {}", CondToString(cond), to, from, FPRegStr(convert_from_half ? sz : false, Vd, D), FPRegStr(convert_from_half ? false : sz, Vm, M));
+    }
+
     std::string vfp_VCVT_f_to_f(Cond cond, bool D, size_t Vd, bool sz, bool M, size_t Vm) {
         return fmt::format("vcvt{}.{}.{} {}, {}", CondToString(cond), !sz ? "f64" : "f32", sz ? "f64" : "f32", FPRegStr(!sz, Vd, D), FPRegStr(sz, Vm, M));
     }
 
-    std::string vfp_VCVT_to_float(Cond cond, bool D, size_t Vd, bool sz, bool is_signed, bool M, size_t Vm) {
+    std::string vfp_VCVT_from_int(Cond cond, bool D, size_t Vd, bool sz, bool is_signed, bool M, size_t Vm) {
         return fmt::format("vcvt{}.{}.{} {}, {}", CondToString(cond), sz ? "f64" : "f32", is_signed ? "s32" : "u32", FPRegStr(sz, Vd, D), FPRegStr(false, Vm, M));
     }
 
