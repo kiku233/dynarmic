@@ -11,6 +11,10 @@
 #include <memory>
 
 namespace Dynarmic {
+class ExclusiveMonitor;
+} // namespace Dynarmic
+
+namespace Dynarmic {
 namespace A32 {
 
 using VAddr = std::uint32_t;
@@ -62,6 +66,12 @@ struct UserCallbacks {
     virtual void MemoryWrite32(VAddr vaddr, std::uint32_t value) = 0;
     virtual void MemoryWrite64(VAddr vaddr, std::uint64_t value) = 0;
 
+    // Writes through these callbacks may not be aligned.
+    virtual bool MemoryWriteExclusive8(VAddr /*vaddr*/, std::uint8_t /*value*/, std::uint8_t /*expected*/) { return false; }
+    virtual bool MemoryWriteExclusive16(VAddr /*vaddr*/, std::uint16_t /*value*/, std::uint16_t /*expected*/) { return false; }
+    virtual bool MemoryWriteExclusive32(VAddr /*vaddr*/, std::uint32_t /*value*/, std::uint32_t /*expected*/) { return false; }
+    virtual bool MemoryWriteExclusive64(VAddr /*vaddr*/, std::uint64_t /*value*/, std::uint64_t /*expected*/) { return false; }
+
     // If this callback returns true, the JIT will assume MemoryRead* callbacks will always
     // return the same value at any point in time for this vaddr. The JIT may use this information
     // in optimizations.
@@ -86,6 +96,9 @@ struct UserCallbacks {
 struct UserConfig {
     UserCallbacks* callbacks;
 
+    size_t processor_id = 0;
+    ExclusiveMonitor* global_monitor = nullptr;
+
     /// When set to false, this disables all optimizations than can't otherwise be disabled
     /// by setting other configuration options. This includes:
     /// - IR optimizations
@@ -107,6 +120,15 @@ struct UserConfig {
     ///       So there might be wrongly faulted pages which maps to nullptr.
     ///       This can be avoided by carefully allocating the memory region.
     bool absolute_offset_page_table = false;
+    /// Determines if we should detect memory accesses via page_table that straddle are
+    /// misaligned. Accesses that straddle page boundaries will fallback to the relevant
+    /// memory callback.
+    /// This value should be the required access sizes this applies to ORed together.
+    /// To detect any access, use: 8 | 16 | 32 | 64.
+    std::uint8_t detect_misaligned_access_via_page_table = 0;
+    /// Determines if the above option only triggers when the misalignment straddles a
+    /// page boundary.
+    bool only_detect_misalignment_via_page_table_on_page_boundary = false;
 
     // Fastmem Pointer
     // This should point to the beginning of a 4GB address space which is in arranged just like
@@ -128,6 +150,11 @@ struct UserConfig {
     /// instruction the ExceptionRaised callback is called. If this is true, we define
     /// definite behaviour for some unpredictable instructions.
     bool define_unpredictable_behaviour = false;
+
+    /// HACK:
+    /// This tells the translator a wall clock will be used, thus allowing it
+    /// to avoid writting certain unnecessary code only needed for cycle timers.
+    bool wall_clock_cntpct = false;
 
     /// This enables the fast dispatcher.
     bool enable_fast_dispatch = true;

@@ -194,6 +194,24 @@ OPCODE(UnsignedSaturatedSub32,                              U32,            U32,
 OPCODE(UnsignedSaturatedSub64,                              U64,            U64,            U64                                             )
 OPCODE(UnsignedSaturation,                                  U32,            U32,            U8                                              )
 
+// Vector saturated instructions
+OPCODE(VectorSignedSaturatedAdd8,                           U128,           U128,           U128                                            )
+OPCODE(VectorSignedSaturatedAdd16,                          U128,           U128,           U128                                            )
+OPCODE(VectorSignedSaturatedAdd32,                          U128,           U128,           U128                                            )
+OPCODE(VectorSignedSaturatedAdd64,                          U128,           U128,           U128                                            )
+OPCODE(VectorSignedSaturatedSub8,                           U128,           U128,           U128                                            )
+OPCODE(VectorSignedSaturatedSub16,                          U128,           U128,           U128                                            )
+OPCODE(VectorSignedSaturatedSub32,                          U128,           U128,           U128                                            )
+OPCODE(VectorSignedSaturatedSub64,                          U128,           U128,           U128                                            )
+OPCODE(VectorUnsignedSaturatedAdd8,                         U128,           U128,           U128                                            )
+OPCODE(VectorUnsignedSaturatedAdd16,                        U128,           U128,           U128                                            )
+OPCODE(VectorUnsignedSaturatedAdd32,                        U128,           U128,           U128                                            )
+OPCODE(VectorUnsignedSaturatedAdd64,                        U128,           U128,           U128                                            )
+OPCODE(VectorUnsignedSaturatedSub8,                         U128,           U128,           U128                                            )
+OPCODE(VectorUnsignedSaturatedSub16,                        U128,           U128,           U128                                            )
+OPCODE(VectorUnsignedSaturatedSub32,                        U128,           U128,           U128                                            )
+OPCODE(VectorUnsignedSaturatedSub64,                        U128,           U128,           U128                                            )
+
 // Packed instructions
 OPCODE(PackedAddU8,                                         U32,            U32,            U32                                             )
 OPCODE(PackedAddS8,                                         U32,            U32,            U32                                             )
@@ -623,11 +641,14 @@ OPCODE(FPVectorToUnsignedFixed64,                           U128,           U128
 
 // A32 Memory access
 A32OPC(ClearExclusive,                                      Void,                                                                           )
-A32OPC(SetExclusive,                                        Void,           U32,            U8                                              )
 A32OPC(ReadMemory8,                                         U8,             U32                                                             )
 A32OPC(ReadMemory16,                                        U16,            U32                                                             )
 A32OPC(ReadMemory32,                                        U32,            U32                                                             )
 A32OPC(ReadMemory64,                                        U64,            U32                                                             )
+A32OPC(ExclusiveReadMemory8,                                U8,             U32                                                             )
+A32OPC(ExclusiveReadMemory16,                               U16,            U32                                                             )
+A32OPC(ExclusiveReadMemory32,                               U32,            U32                                                             )
+A32OPC(ExclusiveReadMemory64,                               U64,            U32                                                             )
 A32OPC(WriteMemory8,                                        Void,           U32,            U8                                              )
 A32OPC(WriteMemory16,                                       Void,           U32,            U16                                             )
 A32OPC(WriteMemory32,                                       Void,           U32,            U32                                             )
@@ -635,7 +656,7 @@ A32OPC(WriteMemory64,                                       Void,           U32,
 A32OPC(ExclusiveWriteMemory8,                               U32,            U32,            U8                                              )
 A32OPC(ExclusiveWriteMemory16,                              U32,            U32,            U16                                             )
 A32OPC(ExclusiveWriteMemory32,                              U32,            U32,            U32                                             )
-A32OPC(ExclusiveWriteMemory64,                              U32,            U32,            U32,            U32                             )
+A32OPC(ExclusiveWriteMemory64,                              U32,            U32,            U64                                             )
 
 // A64 Memory access
 A64OPC(ClearExclusive,                                      Void,                                                                           )

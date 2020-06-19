@@ -33,8 +33,12 @@ static RunCodeCallbacks GenRunCodeCallbacks(A64::UserCallbacks* cb, CodePtr (*Lo
     };
 }
 
-static std::function<void(BlockOfCode&)> GenRCP(const A64::UserConfig&) {
-    return [](BlockOfCode&){};
+static std::function<void(BlockOfCode&)> GenRCP(const A64::UserConfig& conf) {
+    return [conf](BlockOfCode& code) {
+        if (conf.page_table) {
+            code.mov(code.r14, Common::BitCast<u64>(conf.page_table));
+        }
+    };
 }
 
 struct Jit::Impl final {
@@ -90,6 +94,11 @@ public:
         }
         PerformRequestedCacheInvalidation();
         is_executing = false;
+    }
+
+    void ChangeProcessorID(size_t value) {
+        conf.processor_id = value;
+        emitter.ChangeProcessorID(value);
     }
 
     void ClearCache() {
@@ -192,11 +201,6 @@ public:
 
     void SetPstate(u32 value) {
         jit_state.SetPstate(value);
-    }
-
-    void ChangeProcessorID(size_t value) {
-        conf.processor_id = value;
-        emitter.ChangeProcessorID(value);
     }
 
     void ClearExclusiveState() {
@@ -326,6 +330,10 @@ void Jit::ExceptionalExit() {
     impl->ExceptionalExit();
 }
 
+void Jit::ChangeProcessorID(size_t new_processor) {
+    impl->ChangeProcessorID(new_processor);
+}
+
 u64 Jit::GetSP() const {
     return impl->GetSP();
 }
@@ -396,10 +404,6 @@ u32 Jit::GetPstate() const {
 
 void Jit::SetPstate(u32 value) {
     impl->SetPstate(value);
-}
-
-void Jit::ChangeProcessorID(size_t new_processor) {
-    impl->ChangeProcessorID(new_processor);
 }
 
 void Jit::ClearExclusiveState() {

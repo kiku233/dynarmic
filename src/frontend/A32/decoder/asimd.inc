@@ -1,6 +1,6 @@
 // Three registers of the same length
 INST(asimd_VHADD,           "VHADD",                    "1111001U0Dzznnnndddd0000NQM0mmmm") // ASIMD
-//INST(asimd_VQADD,           "VQADD",                    "1111001U0-CC--------0000---1----") // ASIMD
+INST(asimd_VQADD,           "VQADD",                    "1111001U0Dzznnnndddd0000NQM1mmmm") // ASIMD
 INST(asimd_VRHADD,          "VRHADD",                   "1111001U0Dzznnnndddd0001NQM0mmmm") // ASIMD
 INST(asimd_VAND_reg,        "VAND (register)",          "111100100D00nnnndddd0001NQM1mmmm") // ASIMD
 INST(asimd_VBIC_reg,        "VBIC (register)",          "111100100D01nnnndddd0001NQM1mmmm") // ASIMD
@@ -11,7 +11,7 @@ INST(asimd_VBSL,            "VBSL",                     "111100110D01nnnndddd000
 INST(asimd_VBIT,            "VBIT",                     "111100110D10nnnndddd0001NQM1mmmm") // ASIMD
 INST(asimd_VBIF,            "VBIF",                     "111100110D11nnnndddd0001NQM1mmmm") // ASIMD
 INST(asimd_VHSUB,           "VHSUB",                    "1111001U0Dzznnnndddd0010NQM0mmmm") // ASIMD
-//INST(asimd_VQSUB,           "VQSUB",                    "1111001U0-CC--------0010---1----") // ASIMD
+INST(asimd_VQSUB,           "VQSUB",                    "1111001U0Dzznnnndddd0010NQM1mmmm") // ASIMD
 //INST(asimd_VCGT_reg,        "VCGT (register)",          "1111001U0-CC--------0011---0----") // ASIMD
 //INST(asimd_VCGE_reg,        "VCGE (register)",          "1111001U0-CC--------0011---1----") // ASIMD
 //INST(asimd_VSHL_reg,        "VSHL (register)",          "1111001U0-CC--------0100---0----") // ASIMD
@@ -23,7 +23,7 @@ INST(asimd_VHSUB,           "VHSUB",                    "1111001U0Dzznnnndddd001
 //INST(asimd_VABA,            "VABA/ABAL",                "1111001U0-CC--------0111---1----") // ASIMD
 //INST(asimd_VADD_int,        "VADD (integer)",           "111100100-CC--------1000---0----") // ASIMD
 //INST(asimd_VSUB_int,        "VAND (integer)",           "111100110-CC--------1000---0----") // ASIMD
-//INST(asimd_VTST,            "VTST",                     "111100100-CC--------1000---1----") // ASIMD
+INST(asimd_VTST,            "VTST",                     "111100100Dzznnnndddd1000NQM1mmmm") // ASIMD
 //INST(asimd_VCEQ_reg,        "VCEG (register)",          "111100110-CC--------1000---1----") // ASIMD
 //INST(asimd_VMLA,            "VMLA/VMLAL/VMLS/VMLSL",    "1111001U0-CC--------1001---0----") // ASIMD
 //INST(asimd_VMUL,            "VMUL/VMULL",               "1111001U0-CC--------1001---1----") // ASIMD
@@ -58,13 +58,13 @@ INST(asimd_VHSUB,           "VHSUB",                    "1111001U0Dzznnnndddd001
 //INST(asimd_VQRDMULH,        "VQRDMULH",                 "1111001U1-BB--------1101-1-0----") // ASIMD
 
 // Two registers and a shift amount
-//INST(asimd_SHR,             "SHR",                      "1111001U1-vvv-------0000LB-1----") // ASIMD
-//INST(asimd_SRA,             "SRA",                      "1111001U1-vvv-------0001LB-1----") // ASIMD
-//INST(asimd_VRSHR,           "VRSHR",                    "1111001U1-vvv-------0010LB-1----") // ASIMD
-//INST(asimd_VRSRA,           "VRSRA",                    "1111001U1-vvv-------0011LB-1----") // ASIMD
-//INST(asimd_VSRI,            "VSRI",                     "111100111-vvv-------0100LB-1----") // ASIMD
-//INST(asimd_VSHL,            "VSHL",                     "111100101-vvv-------0101LB-1----") // ASIMD
-//INST(asimd_VSLI,            "VSLI",                     "111100111-vvv-------0101LB-1----") // ASIMD
+INST(asimd_SHR,             "SHR",                      "1111001U1Diiiiiidddd0000LQM1mmmm") // ASIMD
+INST(asimd_SRA,             "SRA",                      "1111001U1Diiiiiidddd0001LQM1mmmm") // ASIMD
+INST(asimd_VRSHR,           "VRSHR",                    "1111001U1Diiiiiidddd0010LQM1mmmm") // ASIMD
+INST(asimd_VRSRA,           "VRSRA",                    "1111001U1Diiiiiidddd0011LQM1mmmm") // ASIMD
+INST(asimd_VSRI,            "VSRI",                     "111100111Diiiiiidddd0100LQM1mmmm") // ASIMD
+INST(asimd_VSHL,            "VSHL",                     "111100101Diiiiiidddd0101LQM1mmmm") // ASIMD
+INST(asimd_VSLI,            "VSLI",                     "111100111Diiiiiidddd0101LQM1mmmm") // ASIMD
 //INST(asimd_VQSHL,           "VQSHL" ,                   "1111001U1-vvv-------011xLB-1----") // ASIMD
 //INST(asimd_VSHRN,           "VSHRN",                    "111100101-vvv-------100000-1----") // ASIMD
 //INST(asimd_VRSHRN,          "VRSHRN",                   "111100101-vvv-------100001-1----") // ASIMD
@@ -76,24 +76,22 @@ INST(asimd_VHSUB,           "VHSUB",                    "1111001U0Dzznnnndddd001
 //INST(asimd_VCVT_fixed,      "VCVT (fixed-point)",       "1111001U1-vvv-------111x0B-1----") // ASIMD
 
 // Two registers, miscellaneous
-//INST(asimd_VREV64,          "VREV64",                   "111100111-11--00----00000x-0----") // ASIMD
-//INST(asimd_VREV32,          "VREV32",                   "111100111-11--00----00001x-0----") // ASIMD
-//INST(asimd_VREV16,          "VREV16",                   "111100111-11--00----00010x-0----") // ASIMD
+INST(asimd_VREV,            "VREV{16,32,64}",           "111100111D11zz00dddd000ooQM0mmmm") // ASIMD
 //INST(asimd_VPADDL,          "VPADDL",                   "111100111-11--00----0010xx-0----") // ASIMD
-//INST(asimd_VCLS,            "VCLS",                     "111100111-11--00----01000x-0----") // ASIMD
-//INST(asimd_VCLZ,            "VCLZ",                     "111100111-11--00----01001x-0----") // ASIMD
-//INST(asimd_VCNT,            "VCNT",                     "111100111-11--00----01010x-0----") // ASIMD
+INST(asimd_VCLS,            "VCLS",                     "111100111D11zz00dddd01000QM0mmmm") // ASIMD
+INST(asimd_VCLZ,            "VCLZ",                     "111100111D11zz00dddd01001QM0mmmm") // ASIMD
+INST(asimd_VCNT,            "VCNT",                     "111100111D11zz00dddd01010QM0mmmm") // ASIMD
 //INST(asimd_VMVN_reg,        "VMVN_reg",                 "111100111-11--00----01011x-0----") // ASIMD
 //INST(asimd_VPADAL,          "VPADAL",                   "111100111-11--00----0110xx-0----") // ASIMD
-//INST(asimd_VQABS,           "VQABS",                    "111100111-11--00----01110x-0----") // ASIMD
-//INST(asimd_VQNEG,           "VQNEG",                    "111100111-11--00----01111x-0----") // ASIMD
+INST(asimd_VQABS,           "VQABS",                    "111100111D11zz00dddd01110QM0mmmm") // ASIMD
+INST(asimd_VQNEG,           "VQNEG",                    "111100111D11zz00dddd01111QM0mmmm") // ASIMD
 //INST(asimd_VCGT_zero,       "VCGT (zero)",              "111100111-11--01----0x000x-0----") // ASIMD
 //INST(asimd_VCGE_zero,       "VCGE (zero)",              "111100111-11--01----0x001x-0----") // ASIMD
 //INST(asimd_VCEQ_zero,       "VCEQ (zero)",              "111100111-11--01----0x010x-0----") // ASIMD
 //INST(asimd_VCLE_zero,       "VCLE (zero)",              "111100111-11--01----0x011x-0----") // ASIMD
 //INST(asimd_VCLT_zero,       "VCLT (zero)",              "111100111-11--01----0x100x-0----") // ASIMD
-//INST(asimd_VABS,            "VABS",                     "111100111-11--01----0x110x-0----") // ASIMD
-//INST(asimd_VNEG,            "VNEG",                     "111100111-11--01----0x111x-0----") // ASIMD
+INST(asimd_VABS,            "VABS",                     "111100111D11zz01dddd0F110QM0mmmm") // ASIMD
+INST(asimd_VNEG,            "VNEG",                     "111100111D11zz01dddd0F111QM0mmmm") // ASIMD
 INST(asimd_VSWP,            "VSWP",                     "111100111D110010dddd00000QM0mmmm") // ASIMD
 //INST(asimd_VTRN,            "VTRN",                     "111100111-11--10----00001x-0----") // ASIMD
 //INST(asimd_VUZP,            "VUZP",                     "111100111-11--10----00010x-0----") // ASIMD

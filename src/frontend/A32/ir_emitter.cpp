@@ -188,11 +188,6 @@ void IREmitter::ClearExclusive() {
     Inst(Opcode::A32ClearExclusive);
 }
 
-void IREmitter::SetExclusive(const IR::U32& vaddr, size_t byte_size) {
-    ASSERT(byte_size == 1 || byte_size == 2 || byte_size == 4 || byte_size == 8 || byte_size == 16);
-    Inst(Opcode::A32SetExclusive, vaddr, Imm8(u8(byte_size)));
-}
-
 IR::UAny IREmitter::ReadMemory(size_t bitsize, const IR::U32& vaddr) {
     switch (bitsize) {
     case 8:
@@ -224,6 +219,31 @@ IR::U32 IREmitter::ReadMemory32(const IR::U32& vaddr) {
 IR::U64 IREmitter::ReadMemory64(const IR::U32& vaddr) {
     const auto value = Inst<IR::U64>(Opcode::A32ReadMemory64, vaddr);
     return current_location.EFlag() ? ByteReverseDual(value) : value;
+}
+
+IR::U8 IREmitter::ExclusiveReadMemory8(const IR::U32& vaddr) {
+    return Inst<IR::U8>(Opcode::A32ExclusiveReadMemory8, vaddr);
+}
+
+IR::U16 IREmitter::ExclusiveReadMemory16(const IR::U32& vaddr) {
+    const auto value = Inst<IR::U16>(Opcode::A32ExclusiveReadMemory16, vaddr);
+    return current_location.EFlag() ? ByteReverseHalf(value) : value;
+}
+
+IR::U32 IREmitter::ExclusiveReadMemory32(const IR::U32& vaddr) {
+    const auto value = Inst<IR::U32>(Opcode::A32ExclusiveReadMemory32, vaddr);
+    return current_location.EFlag() ? ByteReverseWord(value) : value;
+}
+
+std::pair<IR::U32, IR::U32> IREmitter::ExclusiveReadMemory64(const IR::U32& vaddr) {
+    const auto value = Inst<IR::U64>(Opcode::A32ExclusiveReadMemory64, vaddr);
+    const auto lo = LeastSignificantWord(value);
+    const auto hi = MostSignificantWord(value).result;
+    if (current_location.EFlag()) {
+        // DO NOT SWAP hi AND lo IN BIG ENDIAN MODE, THIS IS CORRECT BEHAVIOUR
+        return std::make_pair(ByteReverseWord(lo), ByteReverseWord(hi));
+    }
+    return std::make_pair(lo, hi);
 }
 
 void IREmitter::WriteMemory(size_t bitsize, const IR::U32& vaddr, const IR::UAny& value) {
@@ -297,9 +317,9 @@ IR::U32 IREmitter::ExclusiveWriteMemory64(const IR::U32& vaddr, const IR::U32& v
     if (current_location.EFlag()) {
         const auto vlo = ByteReverseWord(value_lo);
         const auto vhi = ByteReverseWord(value_hi);
-        return Inst<IR::U32>(Opcode::A32ExclusiveWriteMemory64, vaddr, vlo, vhi);
+        return Inst<IR::U32>(Opcode::A32ExclusiveWriteMemory64, vaddr, Pack2x32To1x64(vlo, vhi));
     } else {
-        return Inst<IR::U32>(Opcode::A32ExclusiveWriteMemory64, vaddr, value_lo, value_hi);
+        return Inst<IR::U32>(Opcode::A32ExclusiveWriteMemory64, vaddr, Pack2x32To1x64(value_lo, value_hi));
     }
 }
 

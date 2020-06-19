@@ -26,15 +26,18 @@ namespace Dynarmic::Backend::X64 {
 class RegAlloc;
 
 struct A32EmitContext final : public EmitContext {
-    A32EmitContext(RegAlloc& reg_alloc, IR::Block& block);
+    A32EmitContext(const A32::UserConfig& conf, RegAlloc& reg_alloc, IR::Block& block);
+
     A32::LocationDescriptor Location() const;
     bool IsSingleStep() const;
     FP::FPCR FPCR() const override;
+
+    const A32::UserConfig& conf;
 };
 
 class A32EmitX64 final : public EmitX64 {
 public:
-    A32EmitX64(BlockOfCode& code, A32::UserConfig config, A32::Jit* jit_interface);
+    A32EmitX64(BlockOfCode& code, A32::UserConfig conf, A32::Jit* jit_interface);
     ~A32EmitX64() override;
 
     /**
@@ -47,8 +50,12 @@ public:
 
     void InvalidateCacheRanges(const boost::icl::interval_set<u32>& ranges);
 
+    void ChangeProcessorID(size_t value) {
+        conf.processor_id = value;
+    }
+
 protected:
-    const A32::UserConfig config;
+    A32::UserConfig conf;
     A32::Jit* jit_interface;
     BlockRangeInformation<u32> block_ranges;
 
@@ -98,10 +105,14 @@ protected:
     FakeCall FastmemCallback(u64 rip);
 
     // Memory access helpers
-    template<std::size_t bitsize>
+    template<std::size_t bitsize, auto callback>
     void ReadMemory(A32EmitContext& ctx, IR::Inst* inst);
-    template<std::size_t bitsize>
+    template<std::size_t bitsize, auto callback>
     void WriteMemory(A32EmitContext& ctx, IR::Inst* inst);
+    template<std::size_t bitsize, auto callback>
+    void ExclusiveReadMemory(A32EmitContext& ctx, IR::Inst* inst);
+    template<std::size_t bitsize, auto callback>
+    void ExclusiveWriteMemory(A32EmitContext& ctx, IR::Inst* inst);
 
     // Terminal instruction emitters
     void EmitSetUpperLocationDescriptor(IR::LocationDescriptor new_location, IR::LocationDescriptor old_location);

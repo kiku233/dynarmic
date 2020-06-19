@@ -240,7 +240,7 @@ static void RunTestInstance(Dynarmic::A32::Jit& jit, A32Unicorn<ArmTestEnv>& uni
         fmt::print("\n");
 
         fmt::print("x86_64:\n");
-        fmt::print("{}\n", jit.Disassemble(A32::LocationDescriptor{initial_pc, A32::PSR{cpsr}, A32::FPSCR{fpscr}}));
+        fmt::print("{}\n", jit.Disassemble());
 
         fmt::print("Interrupts:\n");
         for (const auto& i : uni_env.interrupts) {
@@ -263,7 +263,7 @@ static void RunTestInstance(Dynarmic::A32::Jit& jit, A32Unicorn<ArmTestEnv>& uni
 
     REQUIRE(uni.GetRegisters() == jit.Regs());
     REQUIRE(uni.GetExtRegs() == jit.ExtRegs());
-    REQUIRE((uni.GetCpsr() & ~(1 << 5)) == (jit.Cpsr() & ~(1 << 5)));
+    REQUIRE((uni.GetCpsr() & 0xFFFFFDDF) == (jit.Cpsr() & 0xFFFFFDDF));
     REQUIRE((uni.GetFpscr() & 0xF0000000) == (jit.Fpscr() & 0xF0000000));
     REQUIRE(uni_env.modified_memory == jit_env.modified_memory);
     REQUIRE(uni_env.interrupts.empty());

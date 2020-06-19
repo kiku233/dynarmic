@@ -64,6 +64,9 @@ struct ArmTranslatorVisitor final {
         return {imm32, carry_out};
     }
 
+    // Creates an immediate of the given value
+    IR::UAny I(size_t bitsize, u64 value);
+
     IR::ResultAndCarry<IR::U32> EmitImmShift(IR::U32 value, ShiftType type, Imm<5> imm5, IR::U1 carry_in);
     IR::ResultAndCarry<IR::U32> EmitRegShift(IR::U32 value, ShiftType type, IR::U8 amount, IR::U1 carry_in);
     template <typename FnT> bool EmitVfpVectorOperation(bool sz, ExtReg d, ExtReg n, ExtReg m, const FnT& fn);
@@ -435,6 +438,7 @@ struct ArmTranslatorVisitor final {
 
     // Advanced SIMD three register variants
     bool asimd_VHADD(bool U, bool D, size_t sz, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
+    bool asimd_VQADD(bool U, bool D, size_t sz, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
     bool asimd_VRHADD(bool U, bool D, size_t sz, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
     bool asimd_VAND_reg(bool D, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
     bool asimd_VBIC_reg(bool D, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
@@ -445,8 +449,27 @@ struct ArmTranslatorVisitor final {
     bool asimd_VBIT(bool D, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
     bool asimd_VBIF(bool D, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
     bool asimd_VHSUB(bool U, bool D, size_t sz, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
+    bool asimd_VQSUB(bool U, bool D, size_t sz, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
+    bool asimd_VTST(bool D, size_t sz, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
+
+    // Two registers and a shift amount
+    bool asimd_SHR(bool U, bool D, size_t imm6, size_t Vd, bool L, bool Q, bool M, size_t Vm);
+    bool asimd_SRA(bool U, bool D, size_t imm6, size_t Vd, bool L, bool Q, bool M, size_t Vm);
+    bool asimd_VRSHR(bool U, bool D, size_t imm6, size_t Vd, bool L, bool Q, bool M, size_t Vm);
+    bool asimd_VRSRA(bool U, bool D, size_t imm6, size_t Vd, bool L, bool Q, bool M, size_t Vm);
+    bool asimd_VSRI(bool D, size_t imm6, size_t Vd, bool L, bool Q, bool M, size_t Vm);
+    bool asimd_VSLI(bool D, size_t imm6, size_t Vd, bool L, bool Q, bool M, size_t Vm);
+    bool asimd_VSHL(bool D, size_t imm6, size_t Vd, bool L, bool Q, bool M, size_t Vm);
 
     // Advanced SIMD two register, miscellaneous
+    bool asimd_VREV(bool D, size_t sz, size_t Vd, size_t op, bool Q, bool M, size_t Vm);
+    bool asimd_VCLS(bool D, size_t sz, size_t Vd, bool Q, bool M, size_t Vm);
+    bool asimd_VCLZ(bool D, size_t sz, size_t Vd, bool Q, bool M, size_t Vm);
+    bool asimd_VCNT(bool D, size_t sz, size_t Vd, bool Q, bool M, size_t Vm);
+    bool asimd_VQABS(bool D, size_t sz, size_t Vd, bool Q, bool M, size_t Vm);
+    bool asimd_VQNEG(bool D, size_t sz, size_t Vd, bool Q, bool M, size_t Vm);
+    bool asimd_VABS(bool D, size_t sz, size_t Vd, bool F, bool Q, bool M, size_t Vm);
+    bool asimd_VNEG(bool D, size_t sz, size_t Vd, bool F, bool Q, bool M, size_t Vm);
     bool asimd_VSWP(bool D, size_t Vd, bool Q, bool M, size_t Vm);
 
     // Advanced SIMD load/store structures
