@@ -21,8 +21,8 @@ INST(asimd_VQSUB,           "VQSUB",                    "1111001U0Dzznnnndddd001
 //INST(asimd_VMAX,            "VMAX/VMIN",                "1111001U0-CC--------0110---B----") // ASIMD
 //INST(asimd_VABD,            "VABD/VABDL",               "1111001U0-CC--------0111---0----") // ASIMD
 //INST(asimd_VABA,            "VABA/ABAL",                "1111001U0-CC--------0111---1----") // ASIMD
-//INST(asimd_VADD_int,        "VADD (integer)",           "111100100-CC--------1000---0----") // ASIMD
-//INST(asimd_VSUB_int,        "VAND (integer)",           "111100110-CC--------1000---0----") // ASIMD
+INST(asimd_VADD_int,        "VADD (integer)",           "111100100Dzznnnndddd1000NQM0mmmm") // ASIMD
+INST(asimd_VSUB_int,        "VSUB (integer)",           "111100110Dzznnnndddd1000NQM0mmmm") // ASIMD
 INST(asimd_VTST,            "VTST",                     "111100100Dzznnnndddd1000NQM1mmmm") // ASIMD
 //INST(asimd_VCEQ_reg,        "VCEG (register)",          "111100110-CC--------1000---1----") // ASIMD
 //INST(asimd_VMLA,            "VMLA/VMLAL/VMLS/VMLSL",    "1111001U0-CC--------1001---0----") // ASIMD
@@ -81,7 +81,7 @@ INST(asimd_VREV,            "VREV{16,32,64}",           "111100111D11zz00dddd000
 INST(asimd_VCLS,            "VCLS",                     "111100111D11zz00dddd01000QM0mmmm") // ASIMD
 INST(asimd_VCLZ,            "VCLZ",                     "111100111D11zz00dddd01001QM0mmmm") // ASIMD
 INST(asimd_VCNT,            "VCNT",                     "111100111D11zz00dddd01010QM0mmmm") // ASIMD
-//INST(asimd_VMVN_reg,        "VMVN_reg",                 "111100111-11--00----01011x-0----") // ASIMD
+INST(asimd_VMVN_reg,        "VMVN_reg",                 "111100111D11zz00dddd01011QM0mmmm") // ASIMD
 //INST(asimd_VPADAL,          "VPADAL",                   "111100111-11--00----0110xx-0----") // ASIMD
 INST(asimd_VQABS,           "VQABS",                    "111100111D11zz00dddd01110QM0mmmm") // ASIMD
 INST(asimd_VQNEG,           "VQNEG",                    "111100111D11zz00dddd01111QM0mmmm") // ASIMD

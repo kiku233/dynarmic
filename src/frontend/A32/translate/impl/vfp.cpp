@@ -5,6 +5,8 @@
 
 #include "frontend/A32/translate/impl/translate_arm.h"
 
+#include <array>
+
 namespace Dynarmic::A32 {
 
 template <typename FnT>
@@ -336,6 +338,53 @@ bool ArmTranslatorVisitor::vfp_VFMS(Cond cond, bool D, size_t Vn, size_t Vd, boo
     });
 }
 
+// VSEL<c>.F64 <Dd>, <Dn>, <Dm>
+// VSEL<c>.F32 <Sd>, <Sn>, <Sm>
+bool ArmTranslatorVisitor::vfp_VSEL(bool D, Imm<2> cc, size_t Vn, size_t Vd, bool sz, bool N, bool M, size_t Vm) {
+    const Cond cond = concatenate(cc, Imm<1>{cc.Bit<0>() != cc.Bit<1>()}, Imm<1>{0}).ZeroExtend<Cond>();
+
+    const auto d = ToExtReg(sz, Vd, D);
+    const auto n = ToExtReg(sz, Vn, N);
+    const auto m = ToExtReg(sz, Vm, M);
+
+    return EmitVfpVectorOperation(sz, d, n, m, [this, cond](ExtReg d, ExtReg n, ExtReg m) {
+        const auto reg_n = ir.GetExtendedRegister(n);
+        const auto reg_m = ir.GetExtendedRegister(m);
+        const auto result = ir.ConditionalSelect(cond, reg_n, reg_m);
+        ir.SetExtendedRegister(d, result);
+    });
+}
+
+// VMAXNM.F64 <Dd>, <Dn>, <Dm>
+// VMAXNM.F32 <Sd>, <Sn>, <Sm>
+bool ArmTranslatorVisitor::vfp_VMAXNM(bool D, size_t Vn, size_t Vd, bool sz, bool N, bool M, size_t Vm) {
+    const auto d = ToExtReg(sz, Vd, D);
+    const auto n = ToExtReg(sz, Vn, N);
+    const auto m = ToExtReg(sz, Vm, M);
+
+    return EmitVfpVectorOperation(sz, d, n, m, [this](ExtReg d, ExtReg n, ExtReg m) {
+        const auto reg_n = ir.GetExtendedRegister(n);
+        const auto reg_m = ir.GetExtendedRegister(m);
+        const auto result = ir.FPMaxNumeric(reg_n, reg_m, true);
+        ir.SetExtendedRegister(d, result);
+    });
+}
+
+// VMINNM.F64 <Dd>, <Dn>, <Dm>
+// VMINNM.F32 <Sd>, <Sn>, <Sm>
+bool ArmTranslatorVisitor::vfp_VMINNM(bool D, size_t Vn, size_t Vd, bool sz, bool N, bool M, size_t Vm) {
+    const auto d = ToExtReg(sz, Vd, D);
+    const auto n = ToExtReg(sz, Vn, N);
+    const auto m = ToExtReg(sz, Vm, M);
+
+    return EmitVfpVectorOperation(sz, d, n, m, [this](ExtReg d, ExtReg n, ExtReg m) {
+        const auto reg_n = ir.GetExtendedRegister(n);
+        const auto reg_m = ir.GetExtendedRegister(m);
+        const auto result = ir.FPMinNumeric(reg_n, reg_m, true);
+        ir.SetExtendedRegister(d, result);
+    });
+}
+
 // VMOV<c>.32 <Dd[0]>, <Rt>
 bool ArmTranslatorVisitor::vfp_VMOV_u32_f64(Cond cond, size_t Vd, Reg t, bool D) {
     if (t == Reg::PC) {
@@ -634,6 +683,46 @@ bool ArmTranslatorVisitor::vfp_VCVTT(Cond cond, bool D, bool op, size_t Vd, bool
     }
 }
 
+// VCMP{E}.F32 <Sd>, <Sm>
+// VCMP{E}.F64 <Dd>, <Dm>
+bool ArmTranslatorVisitor::vfp_VCMP(Cond cond, bool D, size_t Vd, bool sz, bool E, bool M, size_t Vm) {
+    if (!ConditionPassed(cond)) {
+        return true;
+    }
+
+    const auto d = ToExtReg(sz, Vd, D);
+    const auto m = ToExtReg(sz, Vm, M);
+    const auto exc_on_qnan = E;
+    const auto reg_d = ir.GetExtendedRegister(d);
+    const auto reg_m = ir.GetExtendedRegister(m);
+    const auto nzcv = ir.FPCompare(reg_d, reg_m, exc_on_qnan, true);
+
+    ir.SetFpscrNZCV(nzcv);
+    return true;
+}
+
+// VCMP{E}.F32 <Sd>, #0.0
+// VCMP{E}.F64 <Dd>, #0.0
+bool ArmTranslatorVisitor::vfp_VCMP_zero(Cond cond, bool D, size_t Vd, bool sz, bool E) {
+    if (!ConditionPassed(cond)) {
+        return true;
+    }
+
+    const auto d = ToExtReg(sz, Vd, D);
+    const auto exc_on_qnan = E;
+    const auto reg_d = ir.GetExtendedRegister(d);
+
+    if (sz) {
+        const auto nzcv = ir.FPCompare(reg_d, ir.Imm64(0), exc_on_qnan, true);
+        ir.SetFpscrNZCV(nzcv);
+    } else {
+        const auto nzcv = ir.FPCompare(reg_d, ir.Imm32(0), exc_on_qnan, true);
+        ir.SetFpscrNZCV(nzcv);
+    }
+
+    return true;
+}
+
 // VCVT<c>.F64.F32 <Dd>, <Sm>
 // VCVT<c>.F32.F64 <Sd>, <Dm>
 bool ArmTranslatorVisitor::vfp_VCVT_f_to_f(Cond cond, bool D, size_t Vd, bool sz, bool M, size_t Vm) {
@@ -684,6 +773,43 @@ bool ArmTranslatorVisitor::vfp_VCVT_from_int(Cond cond, bool D, size_t Vd, bool 
     return true;
 }
 
+// VCVT<c>.{S16,S32,U16,U32}.F32 <Sdm>, <Sdm>, #<fbits>
+// VCVT<c>.{S16,S32,U16,U32}.F64 <Ddm>, <Ddm>, #<fbits>
+bool ArmTranslatorVisitor::vfp_VCVT_from_fixed(Cond cond, bool D, bool U, size_t Vd, bool sf, bool sx, Imm<1> i, Imm<4> imm4) {
+    if (!ConditionPassed(cond)) {
+        return true;
+    }
+
+    const auto d = ToExtReg(sf, Vd, D);
+    const bool unsigned_ = U;
+    const size_t size = sx ? 32 : 16;
+    const size_t frac_bits = size - concatenate(imm4, i).ZeroExtend<size_t>();
+
+    if (frac_bits > size) {
+        return UnpredictableInstruction();
+    }
+
+    const auto value = [&]() -> IR::U32 {
+        const auto reg_d = ir.GetExtendedRegister(d);
+        const auto trunc = ir.LeastSignificant(size, reg_d);
+        return unsigned_ ? ir.ZeroExtendToWord(trunc) : ir.SignExtendToWord(trunc);
+    }();
+    const auto result = [&]() -> IR::U32U64 {
+        if (sf) {
+            return unsigned_
+                 ? ir.FPUnsignedFixedToDouble(value, frac_bits, FP::RoundingMode::ToNearest_TieEven)
+                 : ir.FPSignedFixedToDouble(value, frac_bits, FP::RoundingMode::ToNearest_TieEven);
+        } else {
+            return unsigned_
+                 ? ir.FPUnsignedFixedToSingle(value, frac_bits, FP::RoundingMode::ToNearest_TieEven)
+                 : ir.FPSignedFixedToSingle(value, frac_bits, FP::RoundingMode::ToNearest_TieEven);
+        }
+    }();
+
+    ir.SetExtendedRegister(d, result);
+    return true;
+}
+
 // VCVT{,R}.U32.F32 <Sd>, <Sm>
 // VCVT{,R}.U32.F64 <Sd>, <Dm>
 bool ArmTranslatorVisitor::vfp_VCVT_to_u32(Cond cond, bool D, size_t Vd, bool sz, bool round_towards_zero, bool M, size_t Vm) {
@@ -716,44 +842,47 @@ bool ArmTranslatorVisitor::vfp_VCVT_to_s32(Cond cond, bool D, size_t Vd, bool sz
     return true;
 }
 
-// VCMP{E}.F32 <Sd>, <Sm>
-// VCMP{E}.F64 <Dd>, <Dm>
-bool ArmTranslatorVisitor::vfp_VCMP(Cond cond, bool D, size_t Vd, bool sz, bool E, bool M, size_t Vm) {
-    if (!ConditionPassed(cond)) {
-        return true;
-    }
+// VRINT{A,N,P,M}.F32 <Sd>, <Sm>
+// VRINT{A,N,P,M}.F64 <Dd>, <Dm>
+bool ArmTranslatorVisitor::vfp_VRINT_rm(bool D, size_t rm, size_t Vd, bool sz, bool M, size_t Vm) {
+    const std::array rm_lookup{
+        FP::RoundingMode::ToNearest_TieAwayFromZero,
+        FP::RoundingMode::ToNearest_TieEven,
+        FP::RoundingMode::TowardsPlusInfinity,
+        FP::RoundingMode::TowardsMinusInfinity,
+    };
+    const FP::RoundingMode rounding_mode = rm_lookup[rm];
 
     const auto d = ToExtReg(sz, Vd, D);
     const auto m = ToExtReg(sz, Vm, M);
-    const auto exc_on_qnan = E;
-    const auto reg_d = ir.GetExtendedRegister(d);
-    const auto reg_m = ir.GetExtendedRegister(m);
-    const auto nzcv = ir.FPCompare(reg_d, reg_m, exc_on_qnan, true);
 
-    ir.SetFpscrNZCV(nzcv);
-    return true;
+    return EmitVfpVectorOperation(sz, d, m, [this, rounding_mode](ExtReg d, ExtReg m) {
+        const auto reg_m = ir.GetExtendedRegister(m);
+        const auto result = ir.FPRoundInt(reg_m, rounding_mode, false);
+        ir.SetExtendedRegister(d, result);
+    });
 }
 
-// VCMP{E}.F32 <Sd>, #0.0
-// VCMP{E}.F64 <Dd>, #0.0
-bool ArmTranslatorVisitor::vfp_VCMP_zero(Cond cond, bool D, size_t Vd, bool sz, bool E) {
-    if (!ConditionPassed(cond)) {
-        return true;
-    }
+// VCVT{A,N,P,M}.F32 <Sd>, <Sm>
+// VCVT{A,N,P,M}.F64 <Sd>, <Dm>
+bool ArmTranslatorVisitor::vfp_VCVT_rm(bool D, size_t rm, size_t Vd, bool sz, bool U, bool M, size_t Vm) {
+    const std::array rm_lookup{
+        FP::RoundingMode::ToNearest_TieAwayFromZero,
+        FP::RoundingMode::ToNearest_TieEven,
+        FP::RoundingMode::TowardsPlusInfinity,
+        FP::RoundingMode::TowardsMinusInfinity,
+    };
+    const FP::RoundingMode rounding_mode = rm_lookup[rm];
+    const bool unsigned_ = !U;
 
-    const auto d = ToExtReg(sz, Vd, D);
-    const auto exc_on_qnan = E;
-    const auto reg_d = ir.GetExtendedRegister(d);
+    const auto d = ToExtReg(false, Vd, D);
+    const auto m = ToExtReg(sz, Vm, M);
 
-    if (sz) {
-        const auto nzcv = ir.FPCompare(reg_d, ir.Imm64(0), exc_on_qnan, true);
-        ir.SetFpscrNZCV(nzcv);
-    } else {
-        const auto nzcv = ir.FPCompare(reg_d, ir.Imm32(0), exc_on_qnan, true);
-        ir.SetFpscrNZCV(nzcv);
-    }
-
-    return true;
+    return EmitVfpVectorOperation(sz, d, m, [this, rounding_mode, unsigned_](ExtReg d, ExtReg m) {
+        const auto reg_m = ir.GetExtendedRegister(m);
+        const auto result = unsigned_ ? ir.FPToFixedU32(reg_m, 0, rounding_mode) : ir.FPToFixedS32(reg_m, 0, rounding_mode);
+        ir.SetExtendedRegister(d, result);
+    });
 }
 
 // VMSR FPSCR, <Rt>
