@@ -119,6 +119,16 @@ public:
         return fmt::format("{}{}", dp_operation ? 'd' : 's', reg_num + 1);
     }
 
+    static std::string VectorStr(bool Q, size_t base, bool bit) {
+        size_t reg_num;
+        if (Q) {
+            reg_num = (base >> 1) + (bit ? 8 : 0);
+        } else {
+            reg_num = base + (bit ? 16 : 0);
+        }
+        return fmt::format("{}{}", Q ? 'q' : 'd', reg_num);
+    }
+
     static std::string CondOrTwo(Cond cond) {
         return cond == Cond::NV ? "2" : CondToString(cond);
     }
@@ -1337,6 +1347,41 @@ public:
         return fmt::format("vmov{} {}, {}, {}", CondToString(cond), t, t2, FPRegStr(true, Vm, M));
     }
 
+    std::string vfp_VMOV_from_i32(Cond cond, Imm<1> i, size_t Vd, Reg t, bool D) {
+        const size_t index = i.ZeroExtend();
+        return fmt::format("vmov{}.32 {}[{}], {}", CondToString(cond), FPRegStr(true, Vd, D), index, t);
+    }
+
+    std::string vfp_VMOV_from_i16(Cond cond, Imm<1> i1, size_t Vd, Reg t, bool D, Imm<1> i2) {
+        const size_t index = concatenate(i1, i2).ZeroExtend();
+        return fmt::format("vmov{}.{}16 {}[{}], {}", CondToString(cond), FPRegStr(true, Vd, D), index, t);
+    }
+
+    std::string vfp_VMOV_from_i8(Cond cond, Imm<1> i1, size_t Vd, Reg t, bool D, Imm<2> i2) {
+        const size_t index = concatenate(i1, i2).ZeroExtend();
+        return fmt::format("vmov{}.{}8 {}[{}], {}", CondToString(cond), FPRegStr(true, Vd, D), index, t);
+    }
+
+    std::string vfp_VMOV_to_i32(Cond cond, Imm<1> i, size_t Vn, Reg t, bool N) {
+        const size_t index = i.ZeroExtend();
+        return fmt::format("vmov{}.32 {}, {}[{}]", CondToString(cond), t, FPRegStr(true, Vn, N), index);
+    }
+
+    std::string vfp_VMOV_to_i16(Cond cond, bool U, Imm<1> i1, size_t Vn, Reg t, bool N, Imm<1> i2) {
+        const size_t index = concatenate(i1, i2).ZeroExtend();
+        return fmt::format("vmov{}.{}16 {}, {}[{}]", CondToString(cond), U ? 'u' : 's', t, FPRegStr(true, Vn, N), index);
+    }
+
+    std::string vfp_VMOV_to_i8(Cond cond, bool U, Imm<1> i1, size_t Vn, Reg t, bool N, Imm<2> i2) {
+        const size_t index = concatenate(i1, i2).ZeroExtend();
+        return fmt::format("vmov{}.{}8 {}, {}[{}]", CondToString(cond), U ? 'u' : 's', t, FPRegStr(true, Vn, N), index);
+    }
+
+    std::string vfp_VDUP(Cond cond, Imm<1> B, bool Q, size_t Vd, Reg t, bool D, Imm<1> E) {
+        const size_t esize = 32u >> concatenate(B, E).ZeroExtend();
+        return fmt::format("vdup{}.{} {}, {}", CondToString(cond), esize, VectorStr(Q, Vd, D), t);
+    }
+
     std::string vfp_VMOV_reg(Cond cond, bool D, size_t Vd, bool sz, bool M, size_t Vm){
         return fmt::format("vmov{}.{} {}, {}", CondToString(cond), sz ? "f64" : "f32", FPRegStr(sz, Vd, D), FPRegStr(sz, Vm, M));
     }
@@ -1381,12 +1426,6 @@ public:
 
     std::string vfp_VCVT_from_int(Cond cond, bool D, size_t Vd, bool sz, bool is_signed, bool M, size_t Vm) {
         return fmt::format("vcvt{}.{}.{} {}, {}", CondToString(cond), sz ? "f64" : "f32", is_signed ? "s32" : "u32", FPRegStr(sz, Vd, D), FPRegStr(false, Vm, M));
-    }
-
-    std::string vfp_VCVT_from_fixed(Cond cond, bool D, bool U, size_t Vd, bool sf, bool sx, Imm<1> i, Imm<4> imm4) {
-        const size_t size = sx ? 32 : 16;
-        const int fbits = static_cast<int>(size) - concatenate(imm4, i).ZeroExtend<int>();
-        return fmt::format("vcvt{}.{}{}.{} {}, {}, #{}", CondToString(cond), U ? "u" : "s", size, sf ? "f64" : "f32", FPRegStr(sf, Vd, D), FPRegStr(sf, Vd, D), fbits);
     }
 
     std::string vfp_VCVT_to_u32(Cond cond, bool D, size_t Vd, bool sz, bool round_towards_zero, bool M, size_t Vm) {

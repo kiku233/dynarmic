@@ -61,6 +61,11 @@ bool ShouldTestInst(u32 instruction, u32 pc, bool is_last_inst) {
         case IR::Opcode::A32CoprocLoadWords:
         case IR::Opcode::A32CoprocStoreWords:
             return false;
+        // Currently unimplemented in Unicorn
+        case IR::Opcode::FPVectorRecipEstimate16:
+        case IR::Opcode::FPVectorRSqrtEstimate16:
+        case IR::Opcode::VectorPolynomialMultiplyLong64:
+            return false;
         default:
             continue;
         }
@@ -110,6 +115,11 @@ u32 GenRandomInst(u32 pc, bool is_last_inst) {
             "arm_UDF",
             // FPSCR is inaccurate
             "vfp_VMRS",
+            // Unimplemented in Unicorn
+            "asimd_VPADD_float",
+            // Incorrect Unicorn implementations
+            "asimd_VRECPS", // Unicorn does not fuse the multiply and subtraction, resulting in being off by 1ULP.
+            "asimd_VRSQRTS", // Unicorn does not fuse the multiply and subtraction, resulting in being off by 1ULP.
         };
 
         for (const auto& [fn, bitstring] : list) {
@@ -328,6 +338,36 @@ TEST_CASE("A32: Small random block", "[arm]") {
         INFO("Instruction 3: 0x" << std::hex << instructions[2]);
         INFO("Instruction 4: 0x" << std::hex << instructions[3]);
         INFO("Instruction 5: 0x" << std::hex << instructions[4]);
+
+        regs[15] = start_address;
+        RunTestInstance(jit, uni, jit_env, uni_env, regs, ext_reg, instructions, cpsr, fpcr);
+    }
+}
+
+TEST_CASE("A32: Large random block", "[arm]") {
+    ArmTestEnv jit_env{};
+    ArmTestEnv uni_env{};
+
+    Dynarmic::A32::Jit jit{GetUserConfig(jit_env)};
+    A32Unicorn<ArmTestEnv> uni{uni_env};
+
+    A32Unicorn<ArmTestEnv>::RegisterArray regs;
+    A32Unicorn<ArmTestEnv>::ExtRegArray ext_reg;
+
+    constexpr size_t instruction_count = 100;
+    std::vector<u32> instructions(instruction_count);
+
+    for (size_t iteration = 0; iteration < 10000; ++iteration) {
+        std::generate(regs.begin(), regs.end(), [] { return RandInt<u32>(0, ~u32(0)); });
+        std::generate(ext_reg.begin(), ext_reg.end(), [] { return RandInt<u32>(0, ~u32(0)); });
+
+        for (size_t j = 0; j < instruction_count; ++j) {
+            instructions[j] = GenRandomInst(j * 4, j == instruction_count - 1);
+        }
+
+        const u64 start_address = 100;
+        const u32 cpsr = (RandInt<u32>(0, 0xF) << 28) | 0x10;
+        const u32 fpcr = RandomFpcr();
 
         regs[15] = start_address;
         RunTestInstance(jit, uni, jit_env, uni_env, regs, ext_reg, instructions, cpsr, fpcr);

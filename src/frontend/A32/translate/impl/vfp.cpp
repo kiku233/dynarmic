@@ -97,7 +97,7 @@ bool ArmTranslatorVisitor::vfp_VADD(Cond cond, bool D, size_t Vn, size_t Vd, boo
     return EmitVfpVectorOperation(sz, d, n, m, [this](ExtReg d, ExtReg n, ExtReg m) {
         const auto reg_n = ir.GetExtendedRegister(n);
         const auto reg_m = ir.GetExtendedRegister(m);
-        const auto result = ir.FPAdd(reg_n, reg_m, true);
+        const auto result = ir.FPAdd(reg_n, reg_m);
         ir.SetExtendedRegister(d, result);
     });
 }
@@ -116,7 +116,7 @@ bool ArmTranslatorVisitor::vfp_VSUB(Cond cond, bool D, size_t Vn, size_t Vd, boo
     return EmitVfpVectorOperation(sz, d, n, m, [this](ExtReg d, ExtReg n, ExtReg m) {
         const auto reg_n = ir.GetExtendedRegister(n);
         const auto reg_m = ir.GetExtendedRegister(m);
-        const auto result = ir.FPSub(reg_n, reg_m, true);
+        const auto result = ir.FPSub(reg_n, reg_m);
         ir.SetExtendedRegister(d, result);
     });
 }
@@ -135,7 +135,7 @@ bool ArmTranslatorVisitor::vfp_VMUL(Cond cond, bool D, size_t Vn, size_t Vd, boo
     return EmitVfpVectorOperation(sz, d, n, m, [this](ExtReg d, ExtReg n, ExtReg m) {
         const auto reg_n = ir.GetExtendedRegister(n);
         const auto reg_m = ir.GetExtendedRegister(m);
-        const auto result = ir.FPMul(reg_n, reg_m, true);
+        const auto result = ir.FPMul(reg_n, reg_m);
         ir.SetExtendedRegister(d, result);
     });
 }
@@ -155,7 +155,7 @@ bool ArmTranslatorVisitor::vfp_VMLA(Cond cond, bool D, size_t Vn, size_t Vd, boo
         const auto reg_n = ir.GetExtendedRegister(n);
         const auto reg_m = ir.GetExtendedRegister(m);
         const auto reg_d = ir.GetExtendedRegister(d);
-        const auto result = ir.FPAdd(reg_d, ir.FPMul(reg_n, reg_m, true), true);
+        const auto result = ir.FPAdd(reg_d, ir.FPMul(reg_n, reg_m));
         ir.SetExtendedRegister(d, result);
     });
 }
@@ -175,7 +175,7 @@ bool ArmTranslatorVisitor::vfp_VMLS(Cond cond, bool D, size_t Vn, size_t Vd, boo
         const auto reg_n = ir.GetExtendedRegister(n);
         const auto reg_m = ir.GetExtendedRegister(m);
         const auto reg_d = ir.GetExtendedRegister(d);
-        const auto result = ir.FPAdd(reg_d, ir.FPNeg(ir.FPMul(reg_n, reg_m, true)), true);
+        const auto result = ir.FPAdd(reg_d, ir.FPNeg(ir.FPMul(reg_n, reg_m)));
         ir.SetExtendedRegister(d, result);
     });
 }
@@ -194,7 +194,7 @@ bool ArmTranslatorVisitor::vfp_VNMUL(Cond cond, bool D, size_t Vn, size_t Vd, bo
     return EmitVfpVectorOperation(sz, d, n, m, [this](ExtReg d, ExtReg n, ExtReg m) {
         const auto reg_n = ir.GetExtendedRegister(n);
         const auto reg_m = ir.GetExtendedRegister(m);
-        const auto result = ir.FPNeg(ir.FPMul(reg_n, reg_m, true));
+        const auto result = ir.FPNeg(ir.FPMul(reg_n, reg_m));
         ir.SetExtendedRegister(d, result);
     });
 }
@@ -214,7 +214,7 @@ bool ArmTranslatorVisitor::vfp_VNMLA(Cond cond, bool D, size_t Vn, size_t Vd, bo
         const auto reg_n = ir.GetExtendedRegister(n);
         const auto reg_m = ir.GetExtendedRegister(m);
         const auto reg_d = ir.GetExtendedRegister(d);
-        const auto result = ir.FPAdd(ir.FPNeg(reg_d), ir.FPNeg(ir.FPMul(reg_n, reg_m, true)), true);
+        const auto result = ir.FPAdd(ir.FPNeg(reg_d), ir.FPNeg(ir.FPMul(reg_n, reg_m)));
         ir.SetExtendedRegister(d, result);
     });
 }
@@ -234,7 +234,7 @@ bool ArmTranslatorVisitor::vfp_VNMLS(Cond cond, bool D, size_t Vn, size_t Vd, bo
         const auto reg_n = ir.GetExtendedRegister(n);
         const auto reg_m = ir.GetExtendedRegister(m);
         const auto reg_d = ir.GetExtendedRegister(d);
-        const auto result = ir.FPAdd(ir.FPNeg(reg_d), ir.FPMul(reg_n, reg_m, true), true);
+        const auto result = ir.FPAdd(ir.FPNeg(reg_d), ir.FPMul(reg_n, reg_m));
         ir.SetExtendedRegister(d, result);
     });
 }
@@ -253,7 +253,7 @@ bool ArmTranslatorVisitor::vfp_VDIV(Cond cond, bool D, size_t Vn, size_t Vd, boo
     return EmitVfpVectorOperation(sz, d, n, m, [this](ExtReg d, ExtReg n, ExtReg m) {
         const auto reg_n = ir.GetExtendedRegister(n);
         const auto reg_m = ir.GetExtendedRegister(m);
-        const auto result = ir.FPDiv(reg_n, reg_m, true);
+        const auto result = ir.FPDiv(reg_n, reg_m);
         ir.SetExtendedRegister(d, result);
     });
 }
@@ -273,7 +273,7 @@ bool ArmTranslatorVisitor::vfp_VFNMS(Cond cond, bool D, size_t Vn, size_t Vd, bo
         const auto reg_n = ir.GetExtendedRegister(n);
         const auto reg_m = ir.GetExtendedRegister(m);
         const auto reg_d = ir.GetExtendedRegister(d);
-        const auto result = ir.FPMulAdd(ir.FPNeg(reg_d), reg_n, reg_m, true);
+        const auto result = ir.FPMulAdd(ir.FPNeg(reg_d), reg_n, reg_m);
         ir.SetExtendedRegister(d, result);
     });
 }
@@ -293,7 +293,7 @@ bool ArmTranslatorVisitor::vfp_VFNMA(Cond cond, bool D, size_t Vn, size_t Vd, bo
         const auto reg_n = ir.GetExtendedRegister(n);
         const auto reg_m = ir.GetExtendedRegister(m);
         const auto reg_d = ir.GetExtendedRegister(d);
-        const auto result = ir.FPMulAdd(ir.FPNeg(reg_d), ir.FPNeg(reg_n), reg_m, true);
+        const auto result = ir.FPMulAdd(ir.FPNeg(reg_d), ir.FPNeg(reg_n), reg_m);
         ir.SetExtendedRegister(d, result);
     });
 }
@@ -313,7 +313,7 @@ bool ArmTranslatorVisitor::vfp_VFMA(Cond cond, bool D, size_t Vn, size_t Vd, boo
         const auto reg_n = ir.GetExtendedRegister(n);
         const auto reg_m = ir.GetExtendedRegister(m);
         const auto reg_d = ir.GetExtendedRegister(d);
-        const auto result = ir.FPMulAdd(reg_d, reg_n, reg_m, true);
+        const auto result = ir.FPMulAdd(reg_d, reg_n, reg_m);
         ir.SetExtendedRegister(d, result);
     });
 }
@@ -333,7 +333,7 @@ bool ArmTranslatorVisitor::vfp_VFMS(Cond cond, bool D, size_t Vn, size_t Vd, boo
         const auto reg_n = ir.GetExtendedRegister(n);
         const auto reg_m = ir.GetExtendedRegister(m);
         const auto reg_d = ir.GetExtendedRegister(d);
-        const auto result = ir.FPMulAdd(reg_d, ir.FPNeg(reg_n), reg_m, true);
+        const auto result = ir.FPMulAdd(reg_d, ir.FPNeg(reg_n), reg_m);
         ir.SetExtendedRegister(d, result);
     });
 }
@@ -365,7 +365,7 @@ bool ArmTranslatorVisitor::vfp_VMAXNM(bool D, size_t Vn, size_t Vd, bool sz, boo
     return EmitVfpVectorOperation(sz, d, n, m, [this](ExtReg d, ExtReg n, ExtReg m) {
         const auto reg_n = ir.GetExtendedRegister(n);
         const auto reg_m = ir.GetExtendedRegister(m);
-        const auto result = ir.FPMaxNumeric(reg_n, reg_m, true);
+        const auto result = ir.FPMaxNumeric(reg_n, reg_m);
         ir.SetExtendedRegister(d, result);
     });
 }
@@ -380,7 +380,7 @@ bool ArmTranslatorVisitor::vfp_VMINNM(bool D, size_t Vn, size_t Vd, bool sz, boo
     return EmitVfpVectorOperation(sz, d, n, m, [this](ExtReg d, ExtReg n, ExtReg m) {
         const auto reg_n = ir.GetExtendedRegister(n);
         const auto reg_m = ir.GetExtendedRegister(m);
-        const auto result = ir.FPMinNumeric(reg_n, reg_m, true);
+        const auto result = ir.FPMinNumeric(reg_n, reg_m);
         ir.SetExtendedRegister(d, result);
     });
 }
@@ -520,6 +520,165 @@ bool ArmTranslatorVisitor::vfp_VMOV_f64_2u32(Cond cond, Reg t2, Reg t, bool M, s
     const auto value = ir.GetExtendedRegister(m);
     ir.SetRegister(t, ir.LeastSignificantWord(value));
     ir.SetRegister(t2, ir.MostSignificantWord(value).result);
+    return true;
+}
+
+// VMOV<c>.32 <Dn[x]>, <Rt>
+bool ArmTranslatorVisitor::vfp_VMOV_from_i32(Cond cond, Imm<1> i, size_t Vd, Reg t, bool D) {
+    if (!ConditionPassed(cond)) {
+        return true;
+    }
+
+    if (t == Reg::R15) {
+        // TODO: v8 removes UPREDICTABLE for R13
+        return UnpredictableInstruction();
+    }
+
+    const size_t index = i.ZeroExtend();
+    const auto d = ToVector(false, Vd, D);
+
+    const auto reg_d = ir.GetVector(d);
+    const auto scalar = ir.GetRegister(t);
+    const auto result = ir.VectorSetElement(32, reg_d, index, scalar);
+
+    ir.SetVector(d, result);
+    return true;
+}
+
+// VMOV<c>.16 <Dn[x]>, <Rt>
+bool ArmTranslatorVisitor::vfp_VMOV_from_i16(Cond cond, Imm<1> i1, size_t Vd, Reg t, bool D, Imm<1> i2) {
+    if (!ConditionPassed(cond)) {
+        return true;
+    }
+
+    if (t == Reg::R15) {
+        // TODO: v8 removes UPREDICTABLE for R13
+        return UnpredictableInstruction();
+    }
+
+    const size_t index = concatenate(i1, i2).ZeroExtend();
+    const auto d = ToVector(false, Vd, D);
+
+    const auto reg_d = ir.GetVector(d);
+    const auto scalar = ir.LeastSignificantHalf(ir.GetRegister(t));
+    const auto result = ir.VectorSetElement(16, reg_d, index, scalar);
+
+    ir.SetVector(d, result);
+    return true;
+}
+
+// VMOV<c>.8 <Dn[x]>, <Rt>
+bool ArmTranslatorVisitor::vfp_VMOV_from_i8(Cond cond, Imm<1> i1, size_t Vd, Reg t, bool D, Imm<2> i2) {
+    if (!ConditionPassed(cond)) {
+        return true;
+    }
+
+    if (t == Reg::R15) {
+        // TODO: v8 removes UPREDICTABLE for R13
+        return UnpredictableInstruction();
+    }
+
+    const size_t index = concatenate(i1, i2).ZeroExtend();
+    const auto d = ToVector(false, Vd, D);
+
+    const auto reg_d = ir.GetVector(d);
+    const auto scalar = ir.LeastSignificantByte(ir.GetRegister(t));
+    const auto result = ir.VectorSetElement(8, reg_d, index, scalar);
+
+    ir.SetVector(d, result);
+    return true;
+}
+
+// VMOV<c>.32 <Rt>, <Dn[x]>
+bool ArmTranslatorVisitor::vfp_VMOV_to_i32(Cond cond, Imm<1> i, size_t Vn, Reg t, bool N) {
+    if (!ConditionPassed(cond)) {
+        return true;
+    }
+
+    if (t == Reg::R15) {
+        // TODO: v8 removes UPREDICTABLE for R13
+        return UnpredictableInstruction();
+    }
+
+    const size_t index = i.ZeroExtend();
+    const auto n = ToVector(false, Vn, N);
+
+    const auto reg_n = ir.GetVector(n);
+    const auto result = ir.VectorGetElement(32, reg_n, index);
+
+    ir.SetRegister(t, result);
+    return true;
+}
+
+// VMOV<c>.{U16,S16} <Rt>, <Dn[x]>
+bool ArmTranslatorVisitor::vfp_VMOV_to_i16(Cond cond, bool U, Imm<1> i1, size_t Vn, Reg t, bool N, Imm<1> i2) {
+    if (!ConditionPassed(cond)) {
+        return true;
+    }
+
+    if (t == Reg::R15) {
+        // TODO: v8 removes UPREDICTABLE for R13
+        return UnpredictableInstruction();
+    }
+
+    const size_t index = concatenate(i1, i2).ZeroExtend();
+    const auto n = ToVector(false, Vn, N);
+
+    const auto reg_n = ir.GetVector(n);
+    const auto scalar = ir.VectorGetElement(16, reg_n, index);
+    const auto result = U ? ir.ZeroExtendToWord(scalar) : ir.SignExtendToWord(scalar);
+
+    ir.SetRegister(t, result);
+    return true;
+}
+
+// VMOV<c>.{U8,S8} <Rt>, <Dn[x]>
+bool ArmTranslatorVisitor::vfp_VMOV_to_i8(Cond cond, bool U, Imm<1> i1, size_t Vn, Reg t, bool N, Imm<2> i2) {
+    if (!ConditionPassed(cond)) {
+        return true;
+    }
+
+    if (t == Reg::R15) {
+        // TODO: v8 removes UPREDICTABLE for R13
+        return UnpredictableInstruction();
+    }
+
+    const size_t index = concatenate(i1, i2).ZeroExtend();
+    const auto n = ToVector(false, Vn, N);
+
+    const auto reg_n = ir.GetVector(n);
+    const auto scalar = ir.VectorGetElement(8, reg_n, index);
+    const auto result = U ? ir.ZeroExtendToWord(scalar) : ir.SignExtendToWord(scalar);
+
+    ir.SetRegister(t, result);
+    return true;
+}
+
+// VDUP<c>.{8,16,32} <Qd>, <Rt>
+// VDUP<c>.{8,16,32} <Dd>, <Rt>
+bool ArmTranslatorVisitor::vfp_VDUP(Cond cond, Imm<1> B, bool Q, size_t Vd, Reg t, bool D, Imm<1> E) {
+    if (!ConditionPassed(cond)) {
+        return true;
+    }
+
+    if (Q && Common::Bit<0>(Vd)) {
+        return UndefinedInstruction();
+    }
+    if (t == Reg::R15) {
+        return UnpredictableInstruction();
+    }
+
+    const auto d = ToVector(Q, Vd, D);
+    const size_t BE = concatenate(B, E).ZeroExtend();
+    const size_t esize = 32u >> BE;
+
+    if (BE == 0b11) {
+        return UndefinedInstruction();
+    }
+
+    const auto scalar = ir.LeastSignificant(esize, ir.GetRegister(t));
+    const auto result = ir.VectorBroadcast(esize, scalar);
+    ir.SetVector(d, result);
     return true;
 }
 
@@ -695,7 +854,7 @@ bool ArmTranslatorVisitor::vfp_VCMP(Cond cond, bool D, size_t Vd, bool sz, bool 
     const auto exc_on_qnan = E;
     const auto reg_d = ir.GetExtendedRegister(d);
     const auto reg_m = ir.GetExtendedRegister(m);
-    const auto nzcv = ir.FPCompare(reg_d, reg_m, exc_on_qnan, true);
+    const auto nzcv = ir.FPCompare(reg_d, reg_m, exc_on_qnan);
 
     ir.SetFpscrNZCV(nzcv);
     return true;
@@ -713,10 +872,10 @@ bool ArmTranslatorVisitor::vfp_VCMP_zero(Cond cond, bool D, size_t Vd, bool sz, 
     const auto reg_d = ir.GetExtendedRegister(d);
 
     if (sz) {
-        const auto nzcv = ir.FPCompare(reg_d, ir.Imm64(0), exc_on_qnan, true);
+        const auto nzcv = ir.FPCompare(reg_d, ir.Imm64(0), exc_on_qnan);
         ir.SetFpscrNZCV(nzcv);
     } else {
-        const auto nzcv = ir.FPCompare(reg_d, ir.Imm32(0), exc_on_qnan, true);
+        const auto nzcv = ir.FPCompare(reg_d, ir.Imm32(0), exc_on_qnan);
         ir.SetFpscrNZCV(nzcv);
     }
 
@@ -770,43 +929,6 @@ bool ArmTranslatorVisitor::vfp_VCVT_from_int(Cond cond, bool D, size_t Vd, bool 
         ir.SetExtendedRegister(d, result);
     }
 
-    return true;
-}
-
-// VCVT<c>.{S16,S32,U16,U32}.F32 <Sdm>, <Sdm>, #<fbits>
-// VCVT<c>.{S16,S32,U16,U32}.F64 <Ddm>, <Ddm>, #<fbits>
-bool ArmTranslatorVisitor::vfp_VCVT_from_fixed(Cond cond, bool D, bool U, size_t Vd, bool sf, bool sx, Imm<1> i, Imm<4> imm4) {
-    if (!ConditionPassed(cond)) {
-        return true;
-    }
-
-    const auto d = ToExtReg(sf, Vd, D);
-    const bool unsigned_ = U;
-    const size_t size = sx ? 32 : 16;
-    const size_t frac_bits = size - concatenate(imm4, i).ZeroExtend<size_t>();
-
-    if (frac_bits > size) {
-        return UnpredictableInstruction();
-    }
-
-    const auto value = [&]() -> IR::U32 {
-        const auto reg_d = ir.GetExtendedRegister(d);
-        const auto trunc = ir.LeastSignificant(size, reg_d);
-        return unsigned_ ? ir.ZeroExtendToWord(trunc) : ir.SignExtendToWord(trunc);
-    }();
-    const auto result = [&]() -> IR::U32U64 {
-        if (sf) {
-            return unsigned_
-                 ? ir.FPUnsignedFixedToDouble(value, frac_bits, FP::RoundingMode::ToNearest_TieEven)
-                 : ir.FPSignedFixedToDouble(value, frac_bits, FP::RoundingMode::ToNearest_TieEven);
-        } else {
-            return unsigned_
-                 ? ir.FPUnsignedFixedToSingle(value, frac_bits, FP::RoundingMode::ToNearest_TieEven)
-                 : ir.FPSignedFixedToSingle(value, frac_bits, FP::RoundingMode::ToNearest_TieEven);
-        }
-    }();
-
-    ir.SetExtendedRegister(d, result);
     return true;
 }
 

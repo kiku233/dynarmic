@@ -5,9 +5,105 @@
 
 #include "common/bit_util.h"
 
+#include <array>
+
 #include "frontend/A32/translate/impl/translate_arm.h"
 
 namespace Dynarmic::A32 {
+namespace {
+enum class Comparison {
+    EQ,
+    GE,
+    GT,
+    LE,
+    LT,
+};
+
+bool CompareWithZero(ArmTranslatorVisitor& v, bool D, size_t sz, size_t Vd, bool F, bool Q, bool M, size_t Vm, Comparison type) {
+    if (sz == 0b11 || (F && sz != 0b10)) {
+        return v.UndefinedInstruction();
+    }
+
+    if (Q && (Common::Bit<0>(Vd) || Common::Bit<0>(Vm))) {
+        return v.UndefinedInstruction();
+    }
+
+    const auto d = ToVector(Q, Vd, D);
+    const auto m = ToVector(Q, Vm, M);
+    const auto result = [&] {
+        const auto reg_m = v.ir.GetVector(m);
+        const auto zero = v.ir.ZeroVector();
+
+        if (F) {
+            switch (type) {
+            case Comparison::EQ:
+                return v.ir.FPVectorEqual(32, reg_m, zero, false);
+            case Comparison::GE:
+                return v.ir.FPVectorGreaterEqual(32, reg_m, zero, false);
+            case Comparison::GT:
+                return v.ir.FPVectorGreater(32, reg_m, zero, false);
+            case Comparison::LE:
+                return v.ir.FPVectorGreaterEqual(32, zero, reg_m, false);
+            case Comparison::LT:
+                return v.ir.FPVectorGreater(32, zero, reg_m, false);
+            }
+
+            return IR::U128{};
+        } else {
+            static constexpr std::array fns{
+                &IREmitter::VectorEqual,
+                &IREmitter::VectorGreaterEqualSigned,
+                &IREmitter::VectorGreaterSigned,
+                &IREmitter::VectorLessEqualSigned,
+                &IREmitter::VectorLessSigned,
+            };
+
+            const size_t esize = 8U << sz;
+            return (v.ir.*fns[static_cast<size_t>(type)])(esize, reg_m, zero);
+        }
+    }();
+
+    v.ir.SetVector(d, result);
+    return true;
+}
+
+enum class AccumulateBehavior {
+    None,
+    Accumulate,
+};
+
+bool PairedAddOperation(ArmTranslatorVisitor& v, bool D, size_t sz, size_t Vd, bool op, bool Q, bool M, size_t Vm,
+                        AccumulateBehavior accumulate) {
+    if (sz == 0b11) {
+        return v.UndefinedInstruction();
+    }
+
+    if (Q && (Common::Bit<0>(Vd) || Common::Bit<0>(Vm))) {
+        return v.UndefinedInstruction();
+    }
+
+    const size_t esize = 8U << sz;
+    const auto d = ToVector(Q, Vd, D);
+    const auto m = ToVector(Q, Vm, M);
+
+    const auto reg_m = v.ir.GetVector(m);
+    const auto result = [&] {
+        const auto tmp = op ? v.ir.VectorPairedAddUnsignedWiden(esize, reg_m)
+                            : v.ir.VectorPairedAddSignedWiden(esize, reg_m);
+
+        if (accumulate == AccumulateBehavior::Accumulate) {
+            const auto reg_d = v.ir.GetVector(d);
+            return v.ir.VectorAdd(esize * 2, reg_d, tmp);
+        }
+
+        return tmp;
+    }();
+
+    v.ir.SetVector(d, result);
+    return true;
+}
+
+} // Anonymous namespace
 
 bool ArmTranslatorVisitor::asimd_VREV(bool D, size_t sz, size_t Vd, size_t op, bool Q, bool M, size_t Vm) {
     if (op + sz >= 3) {
@@ -64,7 +160,69 @@ bool ArmTranslatorVisitor::asimd_VREV(bool D, size_t sz, size_t Vd, size_t op, b
         return ir.VectorOr(ir.VectorLogicalShiftRight(esize, reg_m, 8),
                            ir.VectorLogicalShiftLeft(esize, reg_m, 8));
     }();
-    
+
+    ir.SetVector(d, result);
+    return true;
+}
+
+bool ArmTranslatorVisitor::asimd_VPADDL(bool D, size_t sz, size_t Vd, bool op, bool Q, bool M, size_t Vm) {
+    return PairedAddOperation(*this, D, sz, Vd, op, Q, M, Vm, AccumulateBehavior::None);
+}
+
+bool ArmTranslatorVisitor::v8_AESD(bool D, size_t sz, size_t Vd, bool M, size_t Vm) {
+    if (sz != 0b00 || Common::Bit<0>(Vd) || Common::Bit<0>(Vm)) {
+        return UndefinedInstruction();
+    }
+
+    const auto d = ToVector(true, Vd, D);
+    const auto m = ToVector(true, Vm, M);
+    const auto reg_d = ir.GetVector(d);
+    const auto reg_m = ir.GetVector(m);
+    const auto result = ir.AESDecryptSingleRound(ir.VectorEor(reg_d, reg_m));
+
+    ir.SetVector(d, result);
+    return true;
+}
+
+bool ArmTranslatorVisitor::v8_AESE(bool D, size_t sz, size_t Vd, bool M, size_t Vm) {
+    if (sz != 0b00 || Common::Bit<0>(Vd) || Common::Bit<0>(Vm)) {
+        return UndefinedInstruction();
+    }
+
+    const auto d = ToVector(true, Vd, D);
+    const auto m = ToVector(true, Vm, M);
+    const auto reg_d = ir.GetVector(d);
+    const auto reg_m = ir.GetVector(m);
+    const auto result = ir.AESEncryptSingleRound(ir.VectorEor(reg_d, reg_m));
+
+    ir.SetVector(d, result);
+    return true;
+}
+
+bool ArmTranslatorVisitor::v8_AESIMC(bool D, size_t sz, size_t Vd, bool M, size_t Vm) {
+    if (sz != 0b00 || Common::Bit<0>(Vd) || Common::Bit<0>(Vm)) {
+        return UndefinedInstruction();
+    }
+
+    const auto d = ToVector(true, Vd, D);
+    const auto m = ToVector(true, Vm, M);
+    const auto reg_m = ir.GetVector(m);
+    const auto result = ir.AESInverseMixColumns(reg_m);
+
+    ir.SetVector(d, result);
+    return true;
+}
+
+bool ArmTranslatorVisitor::v8_AESMC(bool D, size_t sz, size_t Vd, bool M, size_t Vm) {
+    if (sz != 0b00 || Common::Bit<0>(Vd) || Common::Bit<0>(Vm)) {
+        return UndefinedInstruction();
+    }
+
+    const auto d = ToVector(true, Vd, D);
+    const auto m = ToVector(true, Vm, M);
+    const auto reg_m = ir.GetVector(m);
+    const auto result = ir.AESMixColumns(reg_m);
+
     ir.SetVector(d, result);
     return true;
 }
@@ -152,6 +310,10 @@ bool ArmTranslatorVisitor::asimd_VMVN_reg(bool D, size_t sz, size_t Vd, bool Q, 
     return true;
 }
 
+bool ArmTranslatorVisitor::asimd_VPADAL(bool D, size_t sz, size_t Vd, bool op, bool Q, bool M, size_t Vm) {
+    return PairedAddOperation(*this, D, sz, Vd, op, Q, M, Vm, AccumulateBehavior::Accumulate);
+}
+
 bool ArmTranslatorVisitor::asimd_VQABS(bool D, size_t sz, size_t Vd, bool Q, bool M, size_t Vm) {
     if (sz == 0b11) {
         return UndefinedInstruction();
@@ -192,6 +354,26 @@ bool ArmTranslatorVisitor::asimd_VQNEG(bool D, size_t sz, size_t Vd, bool Q, boo
     return true;
 }
 
+bool ArmTranslatorVisitor::asimd_VCGT_zero(bool D, size_t sz, size_t Vd, bool F, bool Q, bool M, size_t Vm) {
+    return CompareWithZero(*this, D, sz, Vd, F, Q, M, Vm, Comparison::GT);
+}
+
+bool ArmTranslatorVisitor::asimd_VCGE_zero(bool D, size_t sz, size_t Vd, bool F, bool Q, bool M, size_t Vm) {
+    return CompareWithZero(*this, D, sz, Vd, F, Q, M, Vm, Comparison::GE);
+}
+
+bool ArmTranslatorVisitor::asimd_VCEQ_zero(bool D, size_t sz, size_t Vd, bool F, bool Q, bool M, size_t Vm) {
+    return CompareWithZero(*this, D, sz, Vd, F, Q, M, Vm, Comparison::EQ);
+}
+
+bool ArmTranslatorVisitor::asimd_VCLE_zero(bool D, size_t sz, size_t Vd, bool F, bool Q, bool M, size_t Vm) {
+    return CompareWithZero(*this, D, sz, Vd, F, Q, M, Vm, Comparison::LE);
+}
+
+bool ArmTranslatorVisitor::asimd_VCLT_zero(bool D, size_t sz, size_t Vd, bool F, bool Q, bool M, size_t Vm) {
+    return CompareWithZero(*this, D, sz, Vd, F, Q, M, Vm, Comparison::LT);
+}
+
 bool ArmTranslatorVisitor::asimd_VABS(bool D, size_t sz, size_t Vd, bool F, bool Q, bool M, size_t Vm) {
     if (sz == 0b11 || (F && sz != 0b10)) {
         return UndefinedInstruction();
@@ -222,7 +404,7 @@ bool ArmTranslatorVisitor::asimd_VNEG(bool D, size_t sz, size_t Vd, bool F, bool
     if (sz == 0b11 || (F && sz != 0b10)) {
         return UndefinedInstruction();
     }
-    
+
     if (Q && (Common::Bit<0>(Vd) || Common::Bit<0>(Vm))) {
         return UndefinedInstruction();
     }
@@ -272,4 +454,188 @@ bool ArmTranslatorVisitor::asimd_VSWP(bool D, size_t Vd, bool Q, bool M, size_t 
 
     return true;
 }
+
+bool ArmTranslatorVisitor::asimd_VTRN(bool D, size_t sz, size_t Vd, bool Q, bool M, size_t Vm) {
+    if (sz == 0b11) {
+        return UndefinedInstruction();
+    }
+
+    if (Q && (Common::Bit<0>(Vd) || Common::Bit<0>(Vm))) {
+        return UndefinedInstruction();
+    }
+
+    const size_t esize = 8U << sz;
+    const auto d = ToVector(Q, Vd, D);
+    const auto m = ToVector(Q, Vm, M);
+
+    if (d == m) {
+        return UnpredictableInstruction();
+    }
+
+    const auto reg_d = ir.GetVector(d);
+    const auto reg_m = ir.GetVector(m);
+    const auto result_d = ir.VectorTranspose(esize, reg_d, reg_m, false);
+    const auto result_m = ir.VectorTranspose(esize, reg_d, reg_m, true);
+
+    ir.SetVector(d, result_d);
+    ir.SetVector(m, result_m);
+    return true;
+}
+
+bool ArmTranslatorVisitor::asimd_VUZP(bool D, size_t sz, size_t Vd, bool Q, bool M, size_t Vm) {
+    if (sz == 0b11 || (!Q && sz == 0b10)) {
+        return UndefinedInstruction();
+    }
+
+    if (Q && (Common::Bit<0>(Vd) || Common::Bit<0>(Vm))) {
+        return UndefinedInstruction();
+    }
+
+    const size_t esize = 8U << sz;
+    const auto d = ToVector(Q, Vd, D);
+    const auto m = ToVector(Q, Vm, M);
+
+    if (d == m) {
+        return UnpredictableInstruction();
+    }
+
+    const auto reg_d = ir.GetVector(d);
+    const auto reg_m = ir.GetVector(m);
+    auto result_d = ir.VectorDeinterleaveEven(esize, reg_d, reg_m);
+    auto result_m = ir.VectorDeinterleaveOdd(esize, reg_d, reg_m);
+
+    if (!Q) {
+        result_d = ir.VectorShuffleWords(result_d, 0b11011000);
+        result_m = ir.VectorShuffleWords(result_m, 0b11011000);
+    }
+
+    ir.SetVector(d, result_d);
+    ir.SetVector(m, result_m);
+    return true;
+}
+
+bool ArmTranslatorVisitor::asimd_VZIP(bool D, size_t sz, size_t Vd, bool Q, bool M, size_t Vm) {
+    if (sz == 0b11 || (!Q && sz == 0b10)) {
+        return UndefinedInstruction();
+    }
+
+    if (Q && (Common::Bit<0>(Vd) || Common::Bit<0>(Vm))) {
+        return UndefinedInstruction();
+    }
+
+    const size_t esize = 8U << sz;
+    const auto d = ToVector(Q, Vd, D);
+    const auto m = ToVector(Q, Vm, M);
+
+    if (d == m) {
+        return UnpredictableInstruction();
+    }
+
+    const auto reg_d = ir.GetVector(d);
+    const auto reg_m = ir.GetVector(m);
+
+    if (Q){
+        const auto result_d = ir.VectorInterleaveLower(esize, reg_d, reg_m);
+        const auto result_m = ir.VectorInterleaveUpper(esize, reg_d, reg_m);
+
+        ir.SetVector(d, result_d);
+        ir.SetVector(m, result_m);
+    } else {
+        const auto result = ir.VectorInterleaveLower(esize, reg_d, reg_m);
+
+        ir.SetExtendedRegister(d, ir.VectorGetElement(64, result, 0));
+        ir.SetExtendedRegister(m, ir.VectorGetElement(64, result, 1));
+    }
+    return true;
+}
+
+bool ArmTranslatorVisitor::asimd_VMOVN(bool D, size_t sz, size_t Vd, bool M, size_t Vm) {
+    if (sz == 0b11 || Common::Bit<0>(Vm)) {
+        return UndefinedInstruction();
+    }
+    const size_t esize = 8U << sz;
+    const auto d = ToVector(false, Vd, D);
+    const auto m = ToVector(true, Vm, M);
+
+    const auto reg_m = ir.GetVector(m);
+    const auto result = ir.VectorNarrow(2 * esize, reg_m);
+
+    ir.SetVector(d, result);
+    return true;
+}
+
+bool ArmTranslatorVisitor::asimd_VRECPE(bool D, size_t sz, size_t Vd, bool F, bool Q, bool M, size_t Vm) {
+    if (Q && (Common::Bit<0>(Vd) || Common::Bit<0>(Vm))) {
+        return UndefinedInstruction();
+    }
+
+    if (sz == 0b00 || sz == 0b11) {
+        return UndefinedInstruction();
+    }
+
+    if (!F && sz == 0b01) {
+        // TODO: Implement 16-bit VectorUnsignedRecipEstimate
+        return UndefinedInstruction();
+    }
+
+    const size_t esize = 8U << sz;
+
+    const auto d = ToVector(Q, Vd, D);
+    const auto m = ToVector(Q, Vm, M);
+    const auto reg_m = ir.GetVector(m);
+    const auto result = F ? ir.FPVectorRecipEstimate(esize, reg_m, false)
+                          : ir.VectorUnsignedRecipEstimate(reg_m);
+
+    ir.SetVector(d, result);
+    return true;
+}
+
+bool ArmTranslatorVisitor::asimd_VRSQRTE(bool D, size_t sz, size_t Vd, bool F, bool Q, bool M, size_t Vm) {
+    if (Q && (Common::Bit<0>(Vd) || Common::Bit<0>(Vm))) {
+        return UndefinedInstruction();
+    }
+
+    if (sz == 0b00 || sz == 0b11) {
+        return UndefinedInstruction();
+    }
+
+    if (!F && sz == 0b01) {
+        // TODO: Implement 16-bit VectorUnsignedRecipEstimate
+        return UndefinedInstruction();
+    }
+
+    const size_t esize = 8U << sz;
+
+    const auto d = ToVector(Q, Vd, D);
+    const auto m = ToVector(Q, Vm, M);
+    const auto reg_m = ir.GetVector(m);
+    const auto result = F ? ir.FPVectorRSqrtEstimate(esize, reg_m, false)
+                          : ir.VectorUnsignedRecipSqrtEstimate(reg_m);
+
+    ir.SetVector(d, result);
+    return true;
+}
+
+bool ArmTranslatorVisitor::asimd_VCVT_integer(bool D, size_t sz, size_t Vd, bool op, bool U, bool Q, bool M, size_t Vm) {
+    if (Q && (Common::Bit<0>(Vd) || Common::Bit<0>(Vm))) {
+        return UndefinedInstruction();
+    }
+
+    if (sz != 0b10) {
+        return UndefinedInstruction();
+    }
+
+    const size_t esize = 8U << sz;
+    const auto d = ToVector(Q, Vd, D);
+    const auto m = ToVector(Q, Vm, M);
+    const auto reg_m = ir.GetVector(m);
+    const auto result = op ? (U ? ir.FPVectorToUnsignedFixed(esize, reg_m, 0, FP::RoundingMode::TowardsZero, false)
+                                : ir.FPVectorToSignedFixed(esize, reg_m, 0, FP::RoundingMode::TowardsZero, false))
+                           : (U ? ir.FPVectorFromUnsignedFixed(esize, reg_m, 0, FP::RoundingMode::ToNearest_TieEven, false)
+                                : ir.FPVectorFromSignedFixed(esize, reg_m, 0, FP::RoundingMode::ToNearest_TieEven, false));
+
+    ir.SetVector(d, result);
+    return true;
+}
+
 } // namespace Dynarmic::A32

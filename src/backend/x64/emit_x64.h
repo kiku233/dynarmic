@@ -40,13 +40,16 @@ using A64FullVectorWidth = std::integral_constant<size_t, 128>;
 template <typename T>
 using VectorArray = std::array<T, A64FullVectorWidth::value / Common::BitSize<T>()>;
 
+template <typename T>
+using HalfVectorArray = std::array<T, A64FullVectorWidth::value / Common::BitSize<T>() / 2>;
+
 struct EmitContext {
     EmitContext(RegAlloc& reg_alloc, IR::Block& block);
 
     size_t GetInstOffset(IR::Inst* inst) const;
     void EraseInstruction(IR::Inst* inst);
 
-    virtual FP::FPCR FPCR() const = 0;
+    virtual FP::FPCR FPCR(bool fpcr_controlled = true) const = 0;
     virtual bool AccurateNaN() const { return true; }
 
     RegAlloc& reg_alloc;
