@@ -32,8 +32,8 @@ INST(asimd_VMLAL,           "VMLAL/VMLSL",              "1111001U1Dzznnnndddd10o
 INST(asimd_VMUL,            "VMUL",                     "1111001P0Dzznnnndddd1001NQM1mmmm") // ASIMD
 INST(asimd_VMULL,           "VMULL",                    "1111001U1Dzznnnndddd11P0N0M0mmmm") // ASIMD
 //INST(asimd_VPMAX,           "VPMAX/VPMIN",              "1111001U0-CC--------1010---B----") // ASIMD
-//INST(asimd_VQDMULH,         "VQDMULH",                  "111100100-CC--------1011---0----") // ASIMD
-//INST(asimd_VQRDMULH,        "VQRDMULH",                 "111100110-CC--------1011---0----") // ASIMD
+INST(asimd_VQDMULH,         "VQDMULH",                  "111100100Dzznnnndddd1011NQM0mmmm") // ASIMD
+INST(asimd_VQRDMULH,        "VQRDMULH",                 "111100110Dzznnnndddd1011NQM0mmmm") // ASIMD
 INST(asimd_VPADD,           "VPADD",                    "111100100Dzznnnndddd1011NQM1mmmm") // ASIMD
 INST(asimd_VFMA,            "VFMA",                     "111100100D0znnnndddd1100NQM1mmmm") // ASIMD
 INST(asimd_VFMS,            "VFMS",                     "111100100D1znnnndddd1100NQM1mmmm") // ASIMD
@@ -122,8 +122,8 @@ INST(asimd_VTRN,            "VTRN",                     "111100111D11zz10dddd000
 INST(asimd_VUZP,            "VUZP",                     "111100111D11zz10dddd00010QM0mmmm") // ASIMD
 INST(asimd_VZIP,            "VZIP",                     "111100111D11zz10dddd00011QM0mmmm") // ASIMD
 INST(asimd_VMOVN,           "VMOVN",                    "111100111D11zz10dddd001000M0mmmm") // ASIMD
-//INST(asimd_VQMOVUN,         "VQMOVUN",                  "111100111-11--10----001001-0----") // ASIMD
-//INST(asimd_VQMOVN,          "VQMOVN",                   "111100111-11--10----00101x-0----") // ASIMD
+INST(asimd_VQMOVUN,         "VQMOVUN",                  "111100111D11zz10dddd001001M0mmmm") // ASIMD
+INST(asimd_VQMOVN,          "VQMOVN",                   "111100111D11zz10dddd00101oM0mmmm") // ASIMD
 //INST(asimd_VSHLL_max,       "VSHLL_max",                "111100111-11--10----001100-0----") // ASIMD
 //INST(asimd_VCVT_half,       "VCVT (half-precision)",    "111100111-11--10----011x00-0----") // ASIMD
 INST(asimd_VRECPE,          "VRECPE",                   "111100111D11zz11dddd010F0QM0mmmm") // ASIMD

@@ -423,10 +423,14 @@ struct ArmTranslatorVisitor final {
     bool vfp_VCVTT(Cond cond, bool D, bool op, size_t Vd, bool sz, bool M, size_t Vm);
     bool vfp_VCMP(Cond cond, bool D, size_t Vd, bool sz, bool E, bool M, size_t Vm);
     bool vfp_VCMP_zero(Cond cond, bool D, size_t Vd, bool sz, bool E);
+    bool vfp_VRINTR(Cond cond, bool D, size_t Vd, bool sz, bool M, size_t Vm);
+    bool vfp_VRINTZ(Cond cond, bool D, size_t Vd, bool sz, bool M, size_t Vm);
     bool vfp_VCVT_f_to_f(Cond cond, bool D, size_t Vd, bool sz, bool M, size_t Vm);
     bool vfp_VCVT_from_int(Cond cond, bool D, size_t Vd, bool sz, bool is_signed, bool M, size_t Vm);
+    bool vfp_VCVT_from_fixed(Cond cond, bool D, bool U, size_t Vd, bool sz, bool sx, Imm<1> i, Imm<4> imm4);
     bool vfp_VCVT_to_u32(Cond cond, bool D, size_t Vd, bool sz, bool round_towards_zero, bool M, size_t Vm);
     bool vfp_VCVT_to_s32(Cond cond, bool D, size_t Vd, bool sz, bool round_towards_zero, bool M, size_t Vm);
+    bool vfp_VCVT_to_fixed(Cond cond, bool D, bool U, size_t Vd, bool sz, bool sx, Imm<1> i, Imm<4> imm4);
     bool vfp_VRINT_rm(bool D, size_t rm, size_t Vd, bool sz, bool M, size_t Vm);
     bool vfp_VCVT_rm(bool D, size_t rm, size_t Vd, bool sz, bool U, bool M, size_t Vm);
 
@@ -480,6 +484,8 @@ struct ArmTranslatorVisitor final {
     bool asimd_VMLAL(bool U, bool D, size_t sz, size_t Vn, size_t Vd, bool op, bool N, bool M, size_t Vm);
     bool asimd_VMUL(bool P, bool D, size_t sz, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
     bool asimd_VMULL(bool U, bool D, size_t sz, size_t Vn, size_t Vd, bool P, bool N, bool M, size_t Vm);
+    bool asimd_VQDMULH(bool D, size_t sz, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
+    bool asimd_VQRDMULH(bool D, size_t sz, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
     bool asimd_VPADD(bool D, size_t sz, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
     bool asimd_VFMA(bool D, bool sz, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
     bool asimd_VFMS(bool D, bool sz, size_t Vn, size_t Vd, bool N, bool Q, bool M, size_t Vm);
@@ -548,6 +554,8 @@ struct ArmTranslatorVisitor final {
     bool asimd_VUZP(bool D, size_t sz, size_t Vd, bool Q, bool M, size_t Vm);
     bool asimd_VZIP(bool D, size_t sz, size_t Vd, bool Q, bool M, size_t Vm);
     bool asimd_VMOVN(bool D, size_t sz, size_t Vd, bool M, size_t Vm);
+    bool asimd_VQMOVUN(bool D, size_t sz, size_t Vd, bool M, size_t Vm);
+    bool asimd_VQMOVN(bool D, size_t sz, size_t Vd, bool op, bool M, size_t Vm);
     bool asimd_VRECPE(bool D, size_t sz, size_t Vd, bool F, bool Q, bool M, size_t Vm);
     bool asimd_VRSQRTE(bool D, size_t sz, size_t Vd, bool F, bool Q, bool M, size_t Vm);
     bool asimd_VCVT_integer(bool D, size_t sz, size_t Vd, bool op, bool U, bool Q, bool M, size_t Vm);
