@@ -425,6 +425,7 @@ struct ArmTranslatorVisitor final {
     bool vfp_VCMP_zero(Cond cond, bool D, size_t Vd, bool sz, bool E);
     bool vfp_VRINTR(Cond cond, bool D, size_t Vd, bool sz, bool M, size_t Vm);
     bool vfp_VRINTZ(Cond cond, bool D, size_t Vd, bool sz, bool M, size_t Vm);
+    bool vfp_VRINTX(Cond cond, bool D, size_t Vd, bool sz, bool M, size_t Vm);
     bool vfp_VCVT_f_to_f(Cond cond, bool D, size_t Vd, bool sz, bool M, size_t Vm);
     bool vfp_VCVT_from_int(Cond cond, bool D, size_t Vd, bool sz, bool is_signed, bool M, size_t Vm);
     bool vfp_VCVT_from_fixed(Cond cond, bool D, bool U, size_t Vd, bool sz, bool sx, Imm<1> i, Imm<4> imm4);
@@ -510,6 +511,9 @@ struct ArmTranslatorVisitor final {
     bool asimd_VMLAL_scalar(bool U, bool D, size_t sz, size_t Vn, size_t Vd, bool op, bool N, bool M, size_t Vm);
     bool asimd_VMUL_scalar(bool Q, bool D, size_t sz, size_t Vn, size_t Vd, bool F, bool N, bool M, size_t Vm);
     bool asimd_VMULL_scalar(bool U, bool D, size_t sz, size_t Vn, size_t Vd, bool N, bool M, size_t Vm);
+    bool asimd_VQDMULL_scalar(bool D, size_t sz, size_t Vn, size_t Vd, bool N, bool M, size_t Vm);
+    bool asimd_VQDMULH_scalar(bool Q, bool D, size_t sz, size_t Vn, size_t Vd, bool N, bool M, size_t Vm);
+    bool asimd_VQRDMULH_scalar(bool Q, bool D, size_t sz, size_t Vn, size_t Vd, bool N, bool M, size_t Vm);
 
     // Two registers and a shift amount
     bool asimd_SHR(bool U, bool D, size_t imm6, size_t Vd, bool L, bool Q, bool M, size_t Vm);
@@ -526,6 +530,7 @@ struct ArmTranslatorVisitor final {
     bool asimd_VQRSHRUN(bool D, size_t imm6, size_t Vd, bool M, size_t Vm);
     bool asimd_VQSHRN(bool U, bool D, size_t imm6, size_t Vd, bool M, size_t Vm);
     bool asimd_VQRSHRN(bool U, bool D, size_t imm6, size_t Vd, bool M, size_t Vm);
+    bool asimd_VSHLL(bool U, bool D, size_t imm6, size_t Vd, bool M, size_t Vm);
     bool asimd_VCVT_fixed(bool U, bool D, size_t imm6, size_t Vd, bool to_fixed, bool Q, bool M, size_t Vm);
 
     // Advanced SIMD two register, miscellaneous
@@ -556,6 +561,7 @@ struct ArmTranslatorVisitor final {
     bool asimd_VMOVN(bool D, size_t sz, size_t Vd, bool M, size_t Vm);
     bool asimd_VQMOVUN(bool D, size_t sz, size_t Vd, bool M, size_t Vm);
     bool asimd_VQMOVN(bool D, size_t sz, size_t Vd, bool op, bool M, size_t Vm);
+    bool asimd_VSHLL_max(bool D, size_t sz, size_t Vd, bool M, size_t Vm);
     bool asimd_VRECPE(bool D, size_t sz, size_t Vd, bool F, bool Q, bool M, size_t Vm);
     bool asimd_VRSQRTE(bool D, size_t sz, size_t Vd, bool F, bool Q, bool M, size_t Vm);
     bool asimd_VCVT_integer(bool D, size_t sz, size_t Vd, bool op, bool U, bool Q, bool M, size_t Vm);
