@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <array>
 #include <map>
 #include <tuple>
 
@@ -26,8 +27,7 @@ struct A64EmitContext final : public EmitContext {
 
     A64::LocationDescriptor Location() const;
     bool IsSingleStep() const;
-    FP::FPCR FPCR() const override;
-    bool AccurateNaN() const override;
+    FP::FPCR FPCR(bool fpcr_controlled = true) const override;
 
     const A64::UserConfig& conf;
 };
@@ -47,8 +47,12 @@ public:
 
     void InvalidateCacheRanges(const boost::icl::interval_set<u64>& ranges);
 
+    void ChangeProcessorID(size_t value) {
+        conf.processor_id = value;
+    }
+
 protected:
-    const A64::UserConfig conf;
+    A64::UserConfig conf;
     A64::Jit* jit_interface;
     BlockRangeInformation<u64> block_ranges;
 
@@ -75,9 +79,14 @@ protected:
     FastDispatchEntry& (*fast_dispatch_table_lookup)(u64) = nullptr;
     void GenTerminalHandlers();
 
-    void EmitDirectPageTableMemoryRead(A64EmitContext& ctx, IR::Inst* inst, size_t bitsize);
-    void EmitDirectPageTableMemoryWrite(A64EmitContext& ctx, IR::Inst* inst, size_t bitsize);
-    void EmitExclusiveWrite(A64EmitContext& ctx, IR::Inst* inst, size_t bitsize);
+    template<std::size_t bitsize>
+    void EmitDirectPageTableMemoryRead(A64EmitContext& ctx, IR::Inst* inst);
+    template<std::size_t bitsize>
+    void EmitDirectPageTableMemoryWrite(A64EmitContext& ctx, IR::Inst* inst);
+    template<std::size_t bitsize, auto callback>
+    void EmitExclusiveReadMemory(A64EmitContext& ctx, IR::Inst* inst);
+    template<std::size_t bitsize, auto callback>
+    void EmitExclusiveWriteMemory(A64EmitContext& ctx, IR::Inst* inst);
 
     // Microinstruction emitters
     void EmitPushRSB(EmitContext& ctx, IR::Inst* inst);

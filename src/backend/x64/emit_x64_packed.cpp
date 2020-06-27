@@ -76,7 +76,7 @@ void EmitX64::EmitPackedAddU16(EmitContext& ctx, IR::Inst* inst) {
     code.paddw(xmm_a, xmm_b);
 
     if (ge_inst) {
-        if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
+        if (code.HasSSE41()) {
             const Xbyak::Xmm xmm_ge = ctx.reg_alloc.ScratchXmm();
             const Xbyak::Xmm ones = ctx.reg_alloc.ScratchXmm();
 
@@ -199,7 +199,7 @@ void EmitX64::EmitPackedSubU16(EmitContext& ctx, IR::Inst* inst) {
         return;
     }
 
-    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
+    if (code.HasSSE41()) {
         const Xbyak::Xmm xmm_a = ctx.reg_alloc.UseScratchXmm(args[0]);
         const Xbyak::Xmm xmm_b = ctx.reg_alloc.UseXmm(args[1]);
         const Xbyak::Xmm xmm_ge = ctx.reg_alloc.ScratchXmm();
@@ -655,7 +655,19 @@ void EmitX64::EmitPackedSaturatedSubS16(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitPackedAbsDiffSumS8(EmitContext& ctx, IR::Inst* inst) {
-    EmitPackedOperation(code, ctx, inst, &Xbyak::CodeGenerator::psadbw);
+    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+
+    const Xbyak::Xmm xmm_a = ctx.reg_alloc.UseScratchXmm(args[0]);
+    const Xbyak::Xmm xmm_b = ctx.reg_alloc.UseScratchXmm(args[1]);
+    const Xbyak::Xmm tmp = ctx.reg_alloc.ScratchXmm();
+
+    // TODO: Optimize with zero-extension detection
+    code.movaps(tmp, code.MConst(xword, 0xFFFFFFFF));
+    code.pand(xmm_a, tmp);
+    code.pand(xmm_b, tmp);
+    code.psadbw(xmm_a, xmm_b);
+
+    ctx.reg_alloc.DefineValue(inst, xmm_a);
 }
 
 void EmitX64::EmitPackedSelect(EmitContext& ctx, IR::Inst* inst) {
@@ -673,7 +685,7 @@ void EmitX64::EmitPackedSelect(EmitContext& ctx, IR::Inst* inst) {
         code.por(from, ge);
 
         ctx.reg_alloc.DefineValue(inst, from);
-    } else if (code.DoesCpuSupport(Xbyak::util::Cpu::tBMI1)) {
+    } else if (code.HasBMI1()) {
         const Xbyak::Reg32 ge = ctx.reg_alloc.UseGpr(args[0]).cvt32();
         const Xbyak::Reg32 to = ctx.reg_alloc.UseScratchGpr(args[1]).cvt32();
         const Xbyak::Reg32 from = ctx.reg_alloc.UseScratchGpr(args[2]).cvt32();

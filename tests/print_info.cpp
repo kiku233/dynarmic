@@ -18,6 +18,8 @@
 #include "common/common_types.h"
 #include "common/llvm_disassemble.h"
 #include "frontend/A32/decoder/arm.h"
+#include "frontend/A32/decoder/asimd.h"
+#include "frontend/A32/decoder/vfp.h"
 #include "frontend/A32/location_descriptor.h"
 #include "frontend/A32/translate/impl/translate_arm.h"
 #include "frontend/A32/translate/translate.h"
@@ -34,7 +36,11 @@
 using namespace Dynarmic;
 
 const char* GetNameOfA32Instruction(u32 instruction) {
-    if (auto decoder = A32::DecodeArm<A32::ArmTranslatorVisitor>(instruction)) {
+    if (auto vfp_decoder = A32::DecodeVFP<A32::ArmTranslatorVisitor>(instruction)) {
+        return vfp_decoder->get().GetName();
+    } else if (auto asimd_decoder = A32::DecodeASIMD<A32::ArmTranslatorVisitor>(instruction)) {
+        return asimd_decoder->get().GetName();
+    } else if (auto decoder = A32::DecodeArm<A32::ArmTranslatorVisitor>(instruction)) {
         return decoder->get().GetName();
     }
     return "<null>";
@@ -48,7 +54,7 @@ const char* GetNameOfA64Instruction(u32 instruction) {
 }
 
 void PrintA32Instruction(u32 instruction) {
-    fmt::print("{:08x} {}\n", instruction, A32::DisassembleArm(instruction));
+    fmt::print("{:08x} {}\n", instruction, Common::DisassembleAArch32(instruction));
     fmt::print("Name: {}\n", GetNameOfA32Instruction(instruction));
 
     const A32::LocationDescriptor location{0, {}, {}};
@@ -56,6 +62,15 @@ void PrintA32Instruction(u32 instruction) {
     const bool should_continue = A32::TranslateSingleInstruction(block, location, instruction);
     fmt::print("should_continue: {}\n\n", should_continue);
     fmt::print("IR:\n");
+    fmt::print("{}\n", IR::DumpBlock(block));
+
+    Optimization::A32GetSetElimination(block);
+    Optimization::DeadCodeElimination(block);
+    Optimization::ConstantPropagation(block);
+    Optimization::DeadCodeElimination(block);
+    Optimization::IdentityRemovalPass(block);
+
+    fmt::print("Optimized IR:\n");
     fmt::print("{}\n", IR::DumpBlock(block));
 }
 
@@ -71,6 +86,7 @@ void PrintA64Instruction(u32 instruction) {
     fmt::print("{}\n", IR::DumpBlock(block));
 
     Optimization::A64GetSetElimination(block);
+    Optimization::DeadCodeElimination(block);
     Optimization::ConstantPropagation(block);
     Optimization::DeadCodeElimination(block);
     Optimization::IdentityRemovalPass(block);

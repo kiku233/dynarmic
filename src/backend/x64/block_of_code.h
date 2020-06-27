@@ -59,6 +59,10 @@ public:
     void SwitchMxcsrOnEntry();
     /// Code emitter: Makes saved host MXCSR the current MXCSR
     void SwitchMxcsrOnExit();
+    /// Code emitter: Enter standard ASIMD MXCSR region
+    void EnterStandardASIMD();
+    /// Code emitter: Leave standard ASIMD MXCSR region
+    void LeaveStandardASIMD();
     /// Code emitter: Updates cycles remaining my calling cb.AddTicks and cb.GetTicksRemaining
     /// @note this clobbers ABI caller-save registers
     void UpdateTicks();
@@ -138,9 +142,23 @@ public:
     static const std::array<Xbyak::Reg64, 6> ABI_PARAMS;
 #endif
 
-    bool DoesCpuSupport(Xbyak::util::Cpu::Type type) const;
-
     JitStateInfo GetJitStateInfo() const { return jsi; }
+
+    bool HasSSSE3() const;
+    bool HasSSE41() const;
+    bool HasSSE42() const;
+    bool HasPCLMULQDQ() const;
+    bool HasAVX() const;
+    bool HasF16C() const;
+    bool HasAESNI() const;
+    bool HasLZCNT() const;
+    bool HasBMI1() const;
+    bool HasBMI2() const;
+    bool HasFastBMI2() const;
+    bool HasFMA() const;
+    bool HasAVX2() const;
+    bool HasAVX512_Skylake() const;
+    bool HasAVX512_BITALG() const;
 
 private:
     RunCodeCallbacks cb;
@@ -165,6 +183,7 @@ private:
     void GenRunCode(std::function<void(BlockOfCode&)> rcp);
 
     Xbyak::util::Cpu cpu_info;
+    bool DoesCpuSupport(Xbyak::util::Cpu::Type type) const;
 };
 
 } // namespace Dynarmic::Backend::X64

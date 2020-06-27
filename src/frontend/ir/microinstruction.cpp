@@ -99,6 +99,24 @@ bool Inst::IsSharedMemoryReadOrWrite() const {
     return IsSharedMemoryRead() || IsSharedMemoryWrite();
 }
 
+bool Inst::IsExclusiveMemoryRead() const {
+    switch (op) {
+    case Opcode::A32ExclusiveReadMemory8:
+    case Opcode::A32ExclusiveReadMemory16:
+    case Opcode::A32ExclusiveReadMemory32:
+    case Opcode::A32ExclusiveReadMemory64:
+    case Opcode::A64ExclusiveReadMemory8:
+    case Opcode::A64ExclusiveReadMemory16:
+    case Opcode::A64ExclusiveReadMemory32:
+    case Opcode::A64ExclusiveReadMemory64:
+    case Opcode::A64ExclusiveReadMemory128:
+        return true;
+
+    default:
+        return false;
+    }
+}
+
 bool Inst::IsExclusiveMemoryWrite() const {
     switch (op) {
     case Opcode::A32ExclusiveWriteMemory8:
@@ -118,7 +136,7 @@ bool Inst::IsExclusiveMemoryWrite() const {
 }
 
 bool Inst::IsMemoryRead() const {
-    return IsSharedMemoryRead();
+    return IsSharedMemoryRead() || IsExclusiveMemoryRead();
 }
 
 bool Inst::IsMemoryWrite() const {
@@ -184,6 +202,7 @@ bool Inst::ReadsFromCoreRegister() const {
     case Opcode::A32GetRegister:
     case Opcode::A32GetExtendedRegister32:
     case Opcode::A32GetExtendedRegister64:
+    case Opcode::A32GetVector:
     case Opcode::A64GetW:
     case Opcode::A64GetX:
     case Opcode::A64GetS:
@@ -202,6 +221,7 @@ bool Inst::WritesToCoreRegister() const {
     case Opcode::A32SetRegister:
     case Opcode::A32SetExtendedRegister32:
     case Opcode::A32SetExtendedRegister64:
+    case Opcode::A32SetVector:
     case Opcode::A32BXWritePC:
     case Opcode::A64SetW:
     case Opcode::A64SetX:
@@ -405,6 +425,10 @@ bool Inst::WritesToFPSRCumulativeSaturationBit() const {
     case Opcode::VectorSignedSaturatedAccumulateUnsigned16:
     case Opcode::VectorSignedSaturatedAccumulateUnsigned32:
     case Opcode::VectorSignedSaturatedAccumulateUnsigned64:
+    case Opcode::VectorSignedSaturatedAdd8:
+    case Opcode::VectorSignedSaturatedAdd16:
+    case Opcode::VectorSignedSaturatedAdd32:
+    case Opcode::VectorSignedSaturatedAdd64:
     case Opcode::VectorSignedSaturatedDoublingMultiply16:
     case Opcode::VectorSignedSaturatedDoublingMultiply32:
     case Opcode::VectorSignedSaturatedDoublingMultiplyLong16:
@@ -427,10 +451,18 @@ bool Inst::WritesToFPSRCumulativeSaturationBit() const {
     case Opcode::VectorSignedSaturatedShiftLeftUnsigned16:
     case Opcode::VectorSignedSaturatedShiftLeftUnsigned32:
     case Opcode::VectorSignedSaturatedShiftLeftUnsigned64:
+    case Opcode::VectorSignedSaturatedSub8:
+    case Opcode::VectorSignedSaturatedSub16:
+    case Opcode::VectorSignedSaturatedSub32:
+    case Opcode::VectorSignedSaturatedSub64:
     case Opcode::VectorUnsignedSaturatedAccumulateSigned8:
     case Opcode::VectorUnsignedSaturatedAccumulateSigned16:
     case Opcode::VectorUnsignedSaturatedAccumulateSigned32:
     case Opcode::VectorUnsignedSaturatedAccumulateSigned64:
+    case Opcode::VectorUnsignedSaturatedAdd8:
+    case Opcode::VectorUnsignedSaturatedAdd16:
+    case Opcode::VectorUnsignedSaturatedAdd32:
+    case Opcode::VectorUnsignedSaturatedAdd64:
     case Opcode::VectorUnsignedSaturatedNarrow16:
     case Opcode::VectorUnsignedSaturatedNarrow32:
     case Opcode::VectorUnsignedSaturatedNarrow64:
@@ -438,6 +470,10 @@ bool Inst::WritesToFPSRCumulativeSaturationBit() const {
     case Opcode::VectorUnsignedSaturatedShiftLeft16:
     case Opcode::VectorUnsignedSaturatedShiftLeft32:
     case Opcode::VectorUnsignedSaturatedShiftLeft64:
+    case Opcode::VectorUnsignedSaturatedSub8:
+    case Opcode::VectorUnsignedSaturatedSub16:
+    case Opcode::VectorUnsignedSaturatedSub32:
+    case Opcode::VectorUnsignedSaturatedSub64:
         return true;
 
     default:
@@ -455,9 +491,8 @@ bool Inst::CausesCPUException() const {
 
 bool Inst::AltersExclusiveState() const {
     return op == Opcode::A32ClearExclusive ||
-           op == Opcode::A32SetExclusive   ||
            op == Opcode::A64ClearExclusive ||
-           op == Opcode::A64SetExclusive   ||
+           IsExclusiveMemoryRead()         ||
            IsExclusiveMemoryWrite();
 }
 

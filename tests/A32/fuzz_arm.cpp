@@ -61,6 +61,11 @@ bool ShouldTestInst(u32 instruction, u32 pc, bool is_last_inst) {
         case IR::Opcode::A32CoprocLoadWords:
         case IR::Opcode::A32CoprocStoreWords:
             return false;
+        // Currently unimplemented in Unicorn
+        case IR::Opcode::FPVectorRecipEstimate16:
+        case IR::Opcode::FPVectorRSqrtEstimate16:
+        case IR::Opcode::VectorPolynomialMultiplyLong64:
+            return false;
         default:
             continue;
         }
@@ -77,6 +82,7 @@ u32 GenRandomInst(u32 pc, bool is_last_inst) {
         const std::vector<std::tuple<std::string, const char*>> list {
 #define INST(fn, name, bitstring) {#fn, bitstring},
 #include "frontend/A32/decoder/arm.inc"
+#include "frontend/A32/decoder/asimd.inc"
 #include "frontend/A32/decoder/vfp.inc"
 #undef INST
         };
@@ -90,8 +96,8 @@ u32 GenRandomInst(u32 pc, bool is_last_inst) {
             "arm_LDRBT", "arm_LDRBT", "arm_LDRHT", "arm_LDRHT", "arm_LDRSBT", "arm_LDRSBT", "arm_LDRSHT", "arm_LDRSHT", "arm_LDRT", "arm_LDRT",
             "arm_STRBT", "arm_STRBT", "arm_STRHT", "arm_STRHT", "arm_STRT", "arm_STRT",
             // Exclusive load/stores
-            "arm_LDREXB", "arm_LDREXD", "arm_LDREXH", "arm_LDREX",
-            "arm_STREXB", "arm_STREXD", "arm_STREXH", "arm_STREX",
+            "arm_LDREXB", "arm_LDREXD", "arm_LDREXH", "arm_LDREX", "arm_LDAEXB", "arm_LDAEXD", "arm_LDAEXH", "arm_LDAEX",
+            "arm_STREXB", "arm_STREXD", "arm_STREXH", "arm_STREX", "arm_STLEXB", "arm_STLEXD", "arm_STLEXH", "arm_STLEX",
             "arm_SWP", "arm_SWPB",
             // Elevated load/store multiple instructions.
             "arm_LDM_eret", "arm_LDM_usr",
@@ -107,6 +113,14 @@ u32 GenRandomInst(u32 pc, bool is_last_inst) {
             "arm_CPS", "arm_RFE", "arm_SRS",
             // Undefined
             "arm_UDF",
+            // FPSCR is inaccurate
+            "vfp_VMRS",
+            // Unimplemented in Unicorn
+            "asimd_VPADD_float",
+            // Incorrect Unicorn implementations
+            "asimd_VRECPS", // Unicorn does not fuse the multiply and subtraction, resulting in being off by 1ULP.
+            "asimd_VRSQRTS", // Unicorn does not fuse the multiply and subtraction, resulting in being off by 1ULP.
+            "vfp_VCVT_from_fixed", // Unicorn does not do round-to-nearest-even for this instruction correctly.
         };
 
         for (const auto& [fn, bitstring] : list) {
@@ -123,9 +137,10 @@ u32 GenRandomInst(u32 pc, bool is_last_inst) {
         const size_t index = RandInt<size_t>(0, instructions.generators.size() - 1);
         const u32 inst = instructions.generators[index].Generate();
 
-        if (std::any_of(instructions.invalid.begin(), instructions.invalid.end(), [inst](const auto& invalid) { return invalid.Match(inst); })) {
+        if ((instructions.generators[index].Mask() & 0xF0000000) == 0 && (inst & 0xF0000000) == 0xF0000000) {
             continue;
         }
+
         if (ShouldTestInst(inst, pc, is_last_inst)) {
             return inst;
         }
@@ -236,7 +251,7 @@ static void RunTestInstance(Dynarmic::A32::Jit& jit, A32Unicorn<ArmTestEnv>& uni
         fmt::print("\n");
 
         fmt::print("x86_64:\n");
-        fmt::print("{}\n", jit.Disassemble(A32::LocationDescriptor{initial_pc, A32::PSR{cpsr}, A32::FPSCR{fpscr}}));
+        fmt::print("{}\n", jit.Disassemble());
 
         fmt::print("Interrupts:\n");
         for (const auto& i : uni_env.interrupts) {
@@ -259,7 +274,7 @@ static void RunTestInstance(Dynarmic::A32::Jit& jit, A32Unicorn<ArmTestEnv>& uni
 
     REQUIRE(uni.GetRegisters() == jit.Regs());
     REQUIRE(uni.GetExtRegs() == jit.ExtRegs());
-    REQUIRE((uni.GetCpsr() & ~(1 << 5)) == (jit.Cpsr() & ~(1 << 5)));
+    REQUIRE((uni.GetCpsr() & 0xFFFFFDDF) == (jit.Cpsr() & 0xFFFFFDDF));
     REQUIRE((uni.GetFpscr() & 0xF0000000) == (jit.Fpscr() & 0xF0000000));
     REQUIRE(uni_env.modified_memory == jit_env.modified_memory);
     REQUIRE(uni_env.interrupts.empty());
@@ -324,6 +339,36 @@ TEST_CASE("A32: Small random block", "[arm]") {
         INFO("Instruction 3: 0x" << std::hex << instructions[2]);
         INFO("Instruction 4: 0x" << std::hex << instructions[3]);
         INFO("Instruction 5: 0x" << std::hex << instructions[4]);
+
+        regs[15] = start_address;
+        RunTestInstance(jit, uni, jit_env, uni_env, regs, ext_reg, instructions, cpsr, fpcr);
+    }
+}
+
+TEST_CASE("A32: Large random block", "[arm]") {
+    ArmTestEnv jit_env{};
+    ArmTestEnv uni_env{};
+
+    Dynarmic::A32::Jit jit{GetUserConfig(jit_env)};
+    A32Unicorn<ArmTestEnv> uni{uni_env};
+
+    A32Unicorn<ArmTestEnv>::RegisterArray regs;
+    A32Unicorn<ArmTestEnv>::ExtRegArray ext_reg;
+
+    constexpr size_t instruction_count = 100;
+    std::vector<u32> instructions(instruction_count);
+
+    for (size_t iteration = 0; iteration < 10000; ++iteration) {
+        std::generate(regs.begin(), regs.end(), [] { return RandInt<u32>(0, ~u32(0)); });
+        std::generate(ext_reg.begin(), ext_reg.end(), [] { return RandInt<u32>(0, ~u32(0)); });
+
+        for (size_t j = 0; j < instruction_count; ++j) {
+            instructions[j] = GenRandomInst(j * 4, j == instruction_count - 1);
+        }
+
+        const u64 start_address = 100;
+        const u32 cpsr = (RandInt<u32>(0, 0xF) << 28) | 0x10;
+        const u32 fpcr = RandomFpcr();
 
         regs[15] = start_address;
         RunTestInstance(jit, uni, jit_env, uni_env, regs, ext_reg, instructions, cpsr, fpcr);

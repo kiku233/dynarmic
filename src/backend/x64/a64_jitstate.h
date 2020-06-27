@@ -9,6 +9,7 @@
 
 #include <xbyak.h>
 
+#include "backend/x64/nzcv_util.h"
 #include "common/common_types.h"
 #include "frontend/A64/location_descriptor.h"
 
@@ -33,10 +34,10 @@ struct A64JitState {
     u32 cpsr_nzcv = 0;
 
     u32 GetPstate() const {
-        return cpsr_nzcv;
+        return NZCV::FromX64(cpsr_nzcv);
     }
     void SetPstate(u32 new_pstate) {
-        cpsr_nzcv = new_pstate & 0xF0000000;
+        cpsr_nzcv = NZCV::ToX64(new_pstate);
     }
 
     alignas(16) std::array<u64, 64> vec{}; // Extension registers.
@@ -50,6 +51,7 @@ struct A64JitState {
 
     // For internal use (See: BlockOfCode::RunCode)
     u32 guest_MXCSR = 0x00001f80;
+    u32 asimd_MXCSR = 0x00009fc0;
     u32 save_host_MXCSR = 0;
     s64 cycles_to_run = 0;
     s64 cycles_remaining = 0;
@@ -59,7 +61,6 @@ struct A64JitState {
     // Exclusive state
     static constexpr u64 RESERVATION_GRANULE_MASK = 0xFFFF'FFFF'FFFF'FFF0ull;
     u8 exclusive_state = 0;
-    u64 exclusive_address = 0;
 
     static constexpr size_t RSBSize = 8; // MUST be a power of 2.
     static constexpr size_t RSBPtrMask = RSBSize - 1;

@@ -36,7 +36,7 @@ void EmitX64::EmitPack2x64To1x128(EmitContext& ctx, IR::Inst* inst) {
     const Xbyak::Reg64 hi = ctx.reg_alloc.UseGpr(args[1]);
     const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
 
-    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
+    if (code.HasSSE41()) {
         code.movq(result, lo);
         code.pinsrq(result, hi, 1);
     } else {
@@ -126,56 +126,71 @@ static void EmitConditionalSelect(BlockOfCode& code, EmitContext& ctx, IR::Inst*
     const Xbyak::Reg else_ = ctx.reg_alloc.UseScratchGpr(args[2]).changeBit(bitsize);
 
     code.mov(nzcv, dword[r15 + code.GetJitStateInfo().offsetof_cpsr_nzcv]);
-    // TODO: Flag optimization
-    code.shr(nzcv, 28);
-    code.imul(nzcv, nzcv, 0b00010000'10000001);
-    code.and_(nzcv.cvt8(), 1);
-    code.add(nzcv.cvt8(), 0x7F); // restore OF
-    code.sahf(); // restore SF, ZF, CF
+
+    // sahf restores SF, ZF, CF
+    // add al, 0x7F restores OF
 
     switch (args[0].GetImmediateCond()) {
     case IR::Cond::EQ: //z
+        code.sahf();
         code.cmovz(else_, then_);
         break;
     case IR::Cond::NE: //!z
+        code.sahf();
         code.cmovnz(else_, then_);
         break;
     case IR::Cond::CS: //c
+        code.sahf();
         code.cmovc(else_, then_);
         break;
     case IR::Cond::CC: //!c
+        code.sahf();
         code.cmovnc(else_, then_);
         break;
     case IR::Cond::MI: //n
+        code.sahf();
         code.cmovs(else_, then_);
         break;
     case IR::Cond::PL: //!n
+        code.sahf();
         code.cmovns(else_, then_);
         break;
     case IR::Cond::VS: //v
+        code.add(nzcv.cvt8(), 0x7F);
         code.cmovo(else_, then_);
         break;
     case IR::Cond::VC: //!v
+        code.add(nzcv.cvt8(), 0x7F);
         code.cmovno(else_, then_);
         break;
     case IR::Cond::HI: //c & !z
+        code.sahf();
         code.cmc();
         code.cmova(else_, then_);
         break;
     case IR::Cond::LS: //!c | z
+        code.sahf();
         code.cmc();
         code.cmovna(else_, then_);
         break;
     case IR::Cond::GE: // n == v
+        code.add(nzcv.cvt8(), 0x7F);
+        code.sahf();
         code.cmovge(else_, then_);
         break;
     case IR::Cond::LT: // n != v
+        code.add(nzcv.cvt8(), 0x7F);
+        code.sahf();
         code.cmovl(else_, then_);
         break;
     case IR::Cond::GT: // !z & (n == v)
+        code.add(nzcv.cvt8(), 0x7F);
+        code.sahf();
         code.cmovg(else_, then_);
         break;
     case IR::Cond::LE: // z | (n != v)
+        code.add(nzcv.cvt8(), 0x7F);
+        code.sahf();
         code.cmovle(else_, then_);
         break;
     case IR::Cond::AL:
@@ -776,7 +791,7 @@ static void EmitMaskedShift32(BlockOfCode& code, EmitContext& ctx, IR::Inst* ins
     }
 
     if constexpr (!std::is_same_v<BMI2FT, std::nullptr_t>) {
-        if (code.DoesCpuSupport(Xbyak::util::Cpu::tBMI2)) {
+        if (code.HasBMI2()) {
             const Xbyak::Reg32 result = ctx.reg_alloc.ScratchGpr().cvt32();
             const Xbyak::Reg32 operand = ctx.reg_alloc.UseGpr(operand_arg).cvt32();
             const Xbyak::Reg32 shift = ctx.reg_alloc.UseGpr(shift_arg).cvt32();
@@ -813,7 +828,7 @@ static void EmitMaskedShift64(BlockOfCode& code, EmitContext& ctx, IR::Inst* ins
     }
 
     if constexpr (!std::is_same_v<BMI2FT, std::nullptr_t>) {
-        if (code.DoesCpuSupport(Xbyak::util::Cpu::tBMI2)) {
+        if (code.HasBMI2()) {
             const Xbyak::Reg64 result = ctx.reg_alloc.ScratchGpr();
             const Xbyak::Reg64 operand = ctx.reg_alloc.UseGpr(operand_arg);
             const Xbyak::Reg64 shift = ctx.reg_alloc.UseGpr(shift_arg);
@@ -1409,7 +1424,7 @@ void EmitX64::EmitByteReverseDual(EmitContext& ctx, IR::Inst* inst) {
 
 void EmitX64::EmitCountLeadingZeros32(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    if (code.DoesCpuSupport(Xbyak::util::Cpu::tLZCNT)) {
+    if (code.HasLZCNT()) {
         const Xbyak::Reg32 source = ctx.reg_alloc.UseGpr(args[0]).cvt32();
         const Xbyak::Reg32 result = ctx.reg_alloc.ScratchGpr().cvt32();
 
@@ -1433,7 +1448,7 @@ void EmitX64::EmitCountLeadingZeros32(EmitContext& ctx, IR::Inst* inst) {
 
 void EmitX64::EmitCountLeadingZeros64(EmitContext& ctx, IR::Inst* inst) {
    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-   if (code.DoesCpuSupport(Xbyak::util::Cpu::tLZCNT)) {
+   if (code.HasLZCNT()) {
        const Xbyak::Reg64 source = ctx.reg_alloc.UseGpr(args[0]).cvt64();
        const Xbyak::Reg64 result = ctx.reg_alloc.ScratchGpr().cvt64();
 

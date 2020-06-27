@@ -11,6 +11,10 @@
 #include <memory>
 
 namespace Dynarmic {
+class ExclusiveMonitor;
+} // namespace Dynarmic
+
+namespace Dynarmic {
 namespace A64 {
 
 using VAddr = std::uint64_t;
@@ -83,11 +87,18 @@ struct UserCallbacks {
     virtual void MemoryWrite64(VAddr vaddr, std::uint64_t value) = 0;
     virtual void MemoryWrite128(VAddr vaddr, Vector value) = 0;
 
+    // Writes through these callbacks may not be aligned.
+    virtual bool MemoryWriteExclusive8(VAddr /*vaddr*/, std::uint8_t /*value*/, std::uint8_t /*expected*/) { return false; }
+    virtual bool MemoryWriteExclusive16(VAddr /*vaddr*/, std::uint16_t /*value*/, std::uint16_t /*expected*/) { return false; }
+    virtual bool MemoryWriteExclusive32(VAddr /*vaddr*/, std::uint32_t /*value*/, std::uint32_t /*expected*/) { return false; }
+    virtual bool MemoryWriteExclusive64(VAddr /*vaddr*/, std::uint64_t /*value*/, std::uint64_t /*expected*/) { return false; }
+    virtual bool MemoryWriteExclusive128(VAddr /*vaddr*/, Vector /*value*/, Vector /*expected*/) { return false; }
+
     // If this callback returns true, the JIT will assume MemoryRead* callbacks will always
     // return the same value at any point in time for this vaddr. The JIT may use this information
     // in optimizations.
     // A conservative implementation that always returns false is safe.
-    virtual bool IsReadOnlyMemory(VAddr /* vaddr */) { return false; }
+    virtual bool IsReadOnlyMemory(VAddr /*vaddr*/) { return false; }
 
     /// The interpreter must execute exactly num_instructions starting from PC.
     virtual void InterpreterFallback(VAddr pc, size_t num_instructions) = 0;
@@ -106,8 +117,6 @@ struct UserCallbacks {
     // Get value in the emulated counter-timer physical count register.
     virtual std::uint64_t GetCNTPCT() = 0;
 };
-
-class ExclusiveMonitor;
 
 struct UserConfig {
     UserCallbacks* callbacks;
@@ -187,26 +196,18 @@ struct UserConfig {
     /// page boundary.
     bool only_detect_misalignment_via_page_table_on_page_boundary = false;
 
-
     /// This option relates to translation. Generally when we run into an unpredictable
     /// instruction the ExceptionRaised callback is called. If this is true, we define
     /// definite behaviour for some unpredictable instructions.
     bool define_unpredictable_behaviour = false;
 
+    /// HACK:
+    /// This tells the translator a wall clock will be used, thus allowing it
+    /// to avoid writting certain unnecessary code only needed for cycle timers.
+    bool wall_clock_cntpct = false;
+
     /// This enables the fast dispatcher.
     bool enable_fast_dispatch = true;
-
-    // The below options relate to accuracy of floating-point emulation.
-
-    /// Determines how accurate NaN handling is.
-    enum class NaNAccuracy {
-        /// Results of operations with NaNs will exactly match hardware.
-        Accurate,
-        /// Behave as if FPCR.DN is always set.
-        AlwaysForceDefaultNaN,
-        /// No special handling of NaN, other than setting default NaN when FPCR.DN is set.
-        NoChecks,
-    } floating_point_nan_accuracy = NaNAccuracy::Accurate;
 
     // Determines whether AddTicks and GetTicksRemaining are called.
     // If false, execution will continue until soon after Jit::HaltExecution is called.

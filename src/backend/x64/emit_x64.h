@@ -9,9 +9,10 @@
 #include <optional>
 #include <string>
 #include <type_traits>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
+
+#include <tsl/robin_map.h>
+#include <tsl/robin_set.h>
 
 #include <xbyak_util.h>
 
@@ -39,14 +40,16 @@ using A64FullVectorWidth = std::integral_constant<size_t, 128>;
 template <typename T>
 using VectorArray = std::array<T, A64FullVectorWidth::value / Common::BitSize<T>()>;
 
+template <typename T>
+using HalfVectorArray = std::array<T, A64FullVectorWidth::value / Common::BitSize<T>() / 2>;
+
 struct EmitContext {
     EmitContext(RegAlloc& reg_alloc, IR::Block& block);
 
     size_t GetInstOffset(IR::Inst* inst) const;
     void EraseInstruction(IR::Inst* inst);
 
-    virtual FP::FPCR FPCR() const = 0;
-    virtual bool AccurateNaN() const { return true; }
+    virtual FP::FPCR FPCR(bool fpcr_controlled = true) const = 0;
 
     RegAlloc& reg_alloc;
     IR::Block& block;
@@ -69,7 +72,7 @@ public:
     virtual void ClearCache();
 
     /// Invalidates a selection of basic blocks.
-    void InvalidateBasicBlocks(const std::unordered_set<IR::LocationDescriptor>& locations);
+    void InvalidateBasicBlocks(const tsl::robin_set<IR::LocationDescriptor>& locations);
 
 protected:
     // Microinstruction emitters
@@ -115,8 +118,8 @@ protected:
     // State
     BlockOfCode& code;
     ExceptionHandler exception_handler;
-    std::unordered_map<IR::LocationDescriptor, BlockDescriptor> block_descriptors;
-    std::unordered_map<IR::LocationDescriptor, PatchInformation> patch_information;
+    tsl::robin_map<IR::LocationDescriptor, BlockDescriptor> block_descriptors;
+    tsl::robin_map<IR::LocationDescriptor, PatchInformation> patch_information;
 };
 
 } // namespace Dynarmic::Backend::X64
