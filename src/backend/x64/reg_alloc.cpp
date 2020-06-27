@@ -18,7 +18,7 @@ namespace Dynarmic::Backend::X64 {
 
 #define MAYBE_AVX(OPCODE, ...)                                          \
     [&] {                                                               \
-        if (code.HasAVX()) {                                            \
+        if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {              \
             code.v##OPCODE(__VA_ARGS__);                                \
         } else {                                                        \
             code.OPCODE(__VA_ARGS__);                                   \

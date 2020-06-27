@@ -35,6 +35,7 @@ struct TranslatorVisitor final {
     };
 
     static std::optional<BitMasks> DecodeBitMasks(bool immN, Imm<6> imms, Imm<6> immr, bool immediate);
+    static u64 AdvSIMDExpandImm(bool op, Imm<4> cmode, Imm<8> imm8);
 
     IR::UAny I(size_t bitsize, u64 value);
     IR::UAny X(size_t bitsize, Reg reg);
@@ -56,7 +57,6 @@ struct TranslatorVisitor final {
 
     IR::UAnyU128 Mem(IR::U64 address, size_t size, IR::AccType acctype);
     void Mem(IR::U64 address, size_t size, IR::AccType acctype, IR::UAnyU128 value);
-    IR::UAnyU128 ExclusiveMem(IR::U64 address, size_t size, IR::AccType acctype);
     IR::U32 ExclusiveMem(IR::U64 address, size_t size, IR::AccType acctype, IR::UAnyU128 value);
 
     IR::U32U64 SignExtend(IR::UAny value, size_t to_size);

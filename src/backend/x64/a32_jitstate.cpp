@@ -5,7 +5,6 @@
 
 #include "backend/x64/a32_jitstate.h"
 #include "backend/x64/block_of_code.h"
-#include "backend/x64/nzcv_util.h"
 #include "common/assert.h"
 #include "common/bit_util.h"
 #include "common/common_types.h"
@@ -46,13 +45,14 @@ namespace Dynarmic::Backend::X64 {
  */
 
 u32 A32JitState::Cpsr() const {
+    DEBUG_ASSERT((cpsr_nzcv & ~0xF0000000) == 0);
     DEBUG_ASSERT((cpsr_q & ~1) == 0);
     DEBUG_ASSERT((cpsr_jaifm & ~0x010001DF) == 0);
 
     u32 cpsr = 0;
 
     // NZCV flags
-    cpsr |= NZCV::FromX64(cpsr_nzcv);
+    cpsr |= cpsr_nzcv;
     // Q flag
     cpsr |= cpsr_q ? 1 << 27 : 0;
     // GE flags
@@ -74,7 +74,7 @@ u32 A32JitState::Cpsr() const {
 
 void A32JitState::SetCpsr(u32 cpsr) {
     // NZCV flags
-    cpsr_nzcv = NZCV::ToX64(cpsr);
+    cpsr_nzcv = cpsr & 0xF0000000;
     // Q flag
     cpsr_q = Common::Bit<27>(cpsr) ? 1 : 0;
     // GE flags
@@ -165,11 +165,10 @@ u32 A32JitState::Fpscr() const {
     DEBUG_ASSERT((fpsr_nzcv & ~FPSCR_NZCV_MASK) == 0);
 
     const u32 fpcr_mode = static_cast<u32>(upper_location_descriptor) & FPSCR_MODE_MASK;
-    const u32 mxcsr = guest_MXCSR | asimd_MXCSR;
 
     u32 FPSCR = fpcr_mode | fpsr_nzcv;
-    FPSCR |= (mxcsr & 0b0000000000001);       // IOC = IE
-    FPSCR |= (mxcsr & 0b0000000111100) >> 1;  // IXC, UFC, OFC, DZC = PE, UE, OE, ZE
+    FPSCR |= (guest_MXCSR & 0b0000000000001);       // IOC = IE
+    FPSCR |= (guest_MXCSR & 0b0000000111100) >> 1;  // IXC, UFC, OFC, DZC = PE, UE, OE, ZE
     FPSCR |= fpsr_exc;
 
     return FPSCR;
@@ -183,9 +182,10 @@ void A32JitState::SetFpscr(u32 FPSCR) {
     upper_location_descriptor |= FPSCR & FPSCR_MODE_MASK;
 
     fpsr_nzcv = FPSCR & FPSCR_NZCV_MASK;
+    guest_MXCSR = 0;
 
-    guest_MXCSR = 0x00001f80;
-    asimd_MXCSR = 0x00009fc0;
+    // Exception masks / enables
+    guest_MXCSR |= 0x00001f80; // mask all
 
     // RMode
     const std::array<u32, 4> MXCSR_RMode {0x0, 0x4000, 0x2000, 0x6000};

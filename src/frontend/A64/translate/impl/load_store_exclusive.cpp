@@ -56,7 +56,8 @@ static bool ExclusiveSharedDecodeAndOperation(TranslatorVisitor& v, bool pair, s
         break;
     }
     case IR::MemOp::LOAD: {
-        const IR::UAnyU128 data = v.ExclusiveMem(address, dbytes, acctype);
+        v.ir.SetExclusive(address, dbytes);
+        const IR::UAnyU128 data = v.Mem(address, dbytes, acctype);
         if (pair && elsize == 64) {
             v.X(64, Rt, v.ir.VectorGetElement(64, data, 0));
             v.X(64, *Rt2, v.ir.VectorGetElement(64, data, 1));

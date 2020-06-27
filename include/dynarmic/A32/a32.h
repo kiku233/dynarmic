@@ -13,6 +13,12 @@
 #include <dynarmic/A32/config.h>
 
 namespace Dynarmic {
+namespace IR {
+class LocationDescriptor;
+}
+}
+
+namespace Dynarmic {
 namespace A32 {
 
 struct Context;
@@ -59,16 +65,6 @@ public:
      */
     void HaltExecution();
 
-    /**
-     * HACK:
-     * Exits execution from a callback, the callback must rewind the stack or
-     * never return to dynarmic from it's current stack.
-     */
-    void ExceptionalExit();
-
-    /// HACK: Change processor ID.
-    void ChangeProcessorID(std::size_t new_processor);
-
     /// View and modify registers.
     std::array<std::uint32_t, 16>& Regs();
     const std::array<std::uint32_t, 16>& Regs() const;
@@ -87,9 +83,6 @@ public:
     void SaveContext(Context&) const;
     void LoadContext(const Context&);
 
-    /// Clears exclusive state for this core.
-    void ClearExclusiveState();
-
     /**
      * Returns true if Jit::Run was called but hasn't returned yet.
      * i.e.: We're in a callback.
@@ -99,10 +92,10 @@ public:
     }
 
     /**
-     * Debugging: Disassemble all of compiled code.
-     * @return A string containing disassembly of all host machine code produced.
+     * @param descriptor Basic block descriptor.
+     * @return A string containing disassembly of the host machine code produced for the basic block.
      */
-    std::string Disassemble() const;
+    std::string Disassemble(const IR::LocationDescriptor& descriptor);
 
 private:
     bool is_executing = false;

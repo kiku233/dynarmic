@@ -70,13 +70,13 @@ bool FPMinMax(TranslatorVisitor& v, bool Q, bool sz, Vec Vn, Vec Vd, MinMaxOpera
     const auto op = [&](const IR::U32U64& lhs, const IR::U32U64& rhs) {
         switch (operation) {
         case MinMaxOperation::Max:
-            return v.ir.FPMax(lhs, rhs);
+            return v.ir.FPMax(lhs, rhs, true);
         case MinMaxOperation::MaxNumeric:
-            return v.ir.FPMaxNumeric(lhs, rhs);
+            return v.ir.FPMaxNumeric(lhs, rhs, true);
         case MinMaxOperation::Min:
-            return v.ir.FPMin(lhs, rhs);
+            return v.ir.FPMin(lhs, rhs, true);
         case MinMaxOperation::MinNumeric:
-            return v.ir.FPMinNumeric(lhs, rhs);
+            return v.ir.FPMinNumeric(lhs, rhs, true);
         default:
             UNREACHABLE();
         }

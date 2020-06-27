@@ -5,11 +5,9 @@
 
 #include <initializer_list>
 
+#include <dynarmic/A64/exclusive_monitor.h>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
-#include <mp/traits/integer_of_size.h>
-
-#include <dynarmic/exclusive_monitor.h>
 
 #include "backend/x64/a64_emit_x64.h"
 #include "backend/x64/a64_jitstate.h"
@@ -17,7 +15,6 @@
 #include "backend/x64/block_of_code.h"
 #include "backend/x64/devirtualize.h"
 #include "backend/x64/emit_x64.h"
-#include "backend/x64/nzcv_util.h"
 #include "backend/x64/perf_map.h"
 #include "common/assert.h"
 #include "common/bit_util.h"
@@ -48,8 +45,12 @@ bool A64EmitContext::IsSingleStep() const {
     return Location().SingleStepping();
 }
 
-FP::FPCR A64EmitContext::FPCR(bool fpcr_controlled) const {
-    return fpcr_controlled ? Location().FPCR() : Location().FPCR().ASIMDStandardValue();
+FP::FPCR A64EmitContext::FPCR() const {
+    return Location().FPCR();
+}
+
+bool A64EmitContext::AccurateNaN() const {
+    return conf.floating_point_nan_accuracy == A64::UserConfig::NaNAccuracy::Accurate;
 }
 
 A64EmitX64::A64EmitX64(BlockOfCode& code, A64::UserConfig conf, A64::Jit* jit_interface)
@@ -67,15 +68,7 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
     code.EnableWriting();
     SCOPE_EXIT { code.DisableWriting(); };
 
-    static const std::vector<HostLoc> gpr_order = [this]{
-        std::vector<HostLoc> gprs{any_gpr};
-        if (conf.page_table) {
-            gprs.erase(std::find(gprs.begin(), gprs.end(), HostLoc::R14));
-        }
-        return gprs;
-    }();
-
-    RegAlloc reg_alloc{code, A64JitState::SpillCount, SpillToOpArg<A64JitState>, gpr_order, any_xmm};
+    RegAlloc reg_alloc{code, A64JitState::SpillCount, SpillToOpArg<A64JitState>, any_gpr, any_xmm};
     A64EmitContext ctx{conf, reg_alloc, block};
 
     // Start emitting.
@@ -160,7 +153,7 @@ void A64EmitX64::GenMemory128Accessors() {
 #else
     code.sub(rsp, 8);
     Devirtualize<&A64::UserCallbacks::MemoryRead128>(conf.callbacks).EmitCall(code);
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         code.movq(xmm1, code.ABI_RETURN);
         code.pinsrq(xmm1, code.ABI_RETURN2, 1);
     } else {
@@ -183,7 +176,7 @@ void A64EmitX64::GenMemory128Accessors() {
     code.add(rsp, 8 + 16 + ABI_SHADOW_SPACE);
 #else
     code.sub(rsp, 8);
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         code.movq(code.ABI_PARAM3, xmm1);
         code.pextrq(code.ABI_PARAM4, xmm1, 1);
     } else {
@@ -334,7 +327,7 @@ void A64EmitX64::GenTerminalHandlers() {
         calculate_location_descriptor();
         code.L(rsb_cache_miss);
         code.mov(r12, reinterpret_cast<u64>(fast_dispatch_table.data()));
-        if (code.HasSSE42()) {
+        if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE42)) {
             code.crc32(rbx, r12d);
         }
         code.and_(ebp, fast_dispatch_table_mask);
@@ -352,7 +345,7 @@ void A64EmitX64::GenTerminalHandlers() {
         code.align();
         fast_dispatch_table_lookup = code.getCurr<FastDispatchEntry&(*)(u64)>();
         code.mov(code.ABI_PARAM2, reinterpret_cast<u64>(fast_dispatch_table.data()));
-        if (code.HasSSE42()) {
+        if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE42)) {
             code.crc32(code.ABI_PARAM1, code.ABI_PARAM2);
         }
         code.and_(code.ABI_PARAM1.cvt32(), fast_dispatch_table_mask);
@@ -378,7 +371,7 @@ void A64EmitX64::EmitA64SetCheckBit(A64EmitContext& ctx, IR::Inst* inst) {
 void A64EmitX64::EmitA64GetCFlag(A64EmitContext& ctx, IR::Inst* inst) {
     const Xbyak::Reg32 result = ctx.reg_alloc.ScratchGpr().cvt32();
     code.mov(result, dword[r15 + offsetof(A64JitState, cpsr_nzcv)]);
-    code.shr(result, NZCV::x64_c_flag_bit);
+    code.shr(result, 29);
     code.and_(result, 1);
     ctx.reg_alloc.DefineValue(inst, result);
 }
@@ -387,18 +380,6 @@ void A64EmitX64::EmitA64GetNZCVRaw(A64EmitContext& ctx, IR::Inst* inst) {
     const Xbyak::Reg32 nzcv_raw = ctx.reg_alloc.ScratchGpr().cvt32();
 
     code.mov(nzcv_raw, dword[r15 + offsetof(A64JitState, cpsr_nzcv)]);
-
-    if (code.HasFastBMI2()) {
-        const Xbyak::Reg32 tmp = ctx.reg_alloc.ScratchGpr().cvt32();
-        code.mov(tmp, NZCV::x64_mask);
-        code.pext(nzcv_raw, nzcv_raw, tmp);
-        code.shl(nzcv_raw, 28);
-    } else {
-        code.and_(nzcv_raw, NZCV::x64_mask);
-        code.imul(nzcv_raw, nzcv_raw, NZCV::from_x64_multiplier);
-        code.and_(nzcv_raw, NZCV::arm_mask);
-    }
-
     ctx.reg_alloc.DefineValue(inst, nzcv_raw);
 }
 
@@ -406,21 +387,17 @@ void A64EmitX64::EmitA64SetNZCVRaw(A64EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const Xbyak::Reg32 nzcv_raw = ctx.reg_alloc.UseScratchGpr(args[0]).cvt32();
 
-    code.shr(nzcv_raw, 28);
-    if (code.HasFastBMI2()) {
-        const Xbyak::Reg32 tmp = ctx.reg_alloc.ScratchGpr().cvt32();
-        code.mov(tmp, NZCV::x64_mask);
-        code.pdep(nzcv_raw, nzcv_raw, tmp);
-    } else {
-        code.imul(nzcv_raw, nzcv_raw, NZCV::to_x64_multiplier);
-        code.and_(nzcv_raw, NZCV::x64_mask);
-    }
+    code.and_(nzcv_raw, 0xF0000000);
     code.mov(dword[r15 + offsetof(A64JitState, cpsr_nzcv)], nzcv_raw);
 }
 
 void A64EmitX64::EmitA64SetNZCV(A64EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const Xbyak::Reg32 to_store = ctx.reg_alloc.UseScratchGpr(args[0]).cvt32();
+    code.and_(to_store, 0b11000001'00000001);
+    code.imul(to_store, to_store, 0b00010000'00100001);
+    code.shl(to_store, 16);
+    code.and_(to_store, 0xF0000000);
     code.mov(dword[r15 + offsetof(A64JitState, cpsr_nzcv)], to_store);
 }
 
@@ -674,9 +651,7 @@ void A64EmitX64::EmitA64GetCNTFRQ(A64EmitContext& ctx, IR::Inst* inst) {
 
 void A64EmitX64::EmitA64GetCNTPCT(A64EmitContext& ctx, IR::Inst* inst) {
     ctx.reg_alloc.HostCall(inst);
-    if (!conf.wall_clock_cntpct) {
-        code.UpdateTicks();
-    }
+    code.UpdateTicks();
     Devirtualize<&A64::UserCallbacks::GetCNTPCT>(conf.callbacks).EmitCall(code);
 }
 
@@ -728,11 +703,34 @@ void A64EmitX64::EmitA64ClearExclusive(A64EmitContext&, IR::Inst*) {
     code.mov(code.byte[r15 + offsetof(A64JitState, exclusive_state)], u8(0));
 }
 
+void A64EmitX64::EmitA64SetExclusive(A64EmitContext& ctx, IR::Inst* inst) {
+    if (conf.global_monitor) {
+        auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+        ctx.reg_alloc.HostCall(nullptr, {}, args[0], args[1]);
+
+        code.mov(code.byte[r15 + offsetof(A64JitState, exclusive_state)], u8(1));
+        code.mov(code.ABI_PARAM1, reinterpret_cast<u64>(&conf));
+        code.CallLambda(
+            [](A64::UserConfig& conf, u64 vaddr, u8 size) {
+                conf.global_monitor->Mark(conf.processor_id, vaddr, size);
+            }
+        );
+
+        return;
+    }
+
+    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+    ASSERT(args[1].IsImmediate());
+    const Xbyak::Reg64 address = ctx.reg_alloc.UseGpr(args[0]);
+
+    code.mov(code.byte[r15 + offsetof(A64JitState, exclusive_state)], u8(1));
+    code.mov(qword[r15 + offsetof(A64JitState, exclusive_address)], address);
+}
+
 namespace {
 
 constexpr size_t page_bits = 12;
 constexpr size_t page_size = 1 << page_bits;
-constexpr size_t page_mask = (1 << page_bits) - 1;
 
 void EmitDetectMisaignedVAddr(BlockOfCode& code, A64EmitContext& ctx, size_t bitsize, Xbyak::Label& abort, Xbyak::Reg64 vaddr, Xbyak::Reg64 tmp) {
     if (bitsize == 8 || (ctx.conf.detect_misaligned_access_via_page_table & bitsize) == 0) {
@@ -777,145 +775,113 @@ void EmitDetectMisaignedVAddr(BlockOfCode& code, A64EmitContext& ctx, size_t bit
     code.SwitchToNearCode();
 }
 
-Xbyak::RegExp EmitVAddrLookup(BlockOfCode& code, A64EmitContext& ctx, size_t bitsize, Xbyak::Label& abort, Xbyak::Reg64 vaddr) {
+Xbyak::RegExp EmitVAddrLookup(BlockOfCode& code, A64EmitContext& ctx, size_t bitsize, Xbyak::Label& abort, Xbyak::Reg64 vaddr, std::optional<Xbyak::Reg64> arg_scratch = {}) {
     const size_t valid_page_index_bits = ctx.conf.page_table_address_space_bits - page_bits;
     const size_t unused_top_bits = 64 - ctx.conf.page_table_address_space_bits;
 
-    const Xbyak::Reg64 page = ctx.reg_alloc.ScratchGpr();
-    const Xbyak::Reg64 tmp = ctx.conf.absolute_offset_page_table ? page : ctx.reg_alloc.ScratchGpr();
+    const Xbyak::Reg64 page_table = arg_scratch ? *arg_scratch : ctx.reg_alloc.ScratchGpr();
+    const Xbyak::Reg64 tmp = ctx.reg_alloc.ScratchGpr();
 
     EmitDetectMisaignedVAddr(code, ctx, bitsize, abort, vaddr, tmp);
 
+    code.mov(page_table, reinterpret_cast<u64>(ctx.conf.page_table));
+    code.mov(tmp, vaddr);
     if (unused_top_bits == 0) {
-        code.mov(tmp, vaddr);
         code.shr(tmp, int(page_bits));
     } else if (ctx.conf.silently_mirror_page_table) {
         if (valid_page_index_bits >= 32) {
-            if (code.HasBMI2()) {
-                const Xbyak::Reg64 bit_count = ctx.reg_alloc.ScratchGpr();
-                code.mov(bit_count, unused_top_bits);
-                code.bzhi(tmp, vaddr, bit_count);
-                code.shr(tmp, int(page_bits));
-                ctx.reg_alloc.Release(bit_count);
-            } else {
-                code.mov(tmp, vaddr);
-                code.shl(tmp, int(unused_top_bits));
-                code.shr(tmp, int(unused_top_bits + page_bits));
-            }
+            code.shl(tmp, int(unused_top_bits));
+            code.shr(tmp, int(unused_top_bits + page_bits));
         } else {
-            code.mov(tmp, vaddr);
             code.shr(tmp, int(page_bits));
             code.and_(tmp, u32((1 << valid_page_index_bits) - 1));
         }
     } else {
         ASSERT(valid_page_index_bits < 32);
-        code.mov(tmp, vaddr);
         code.shr(tmp, int(page_bits));
         code.test(tmp, u32(-(1 << valid_page_index_bits)));
         code.jnz(abort, code.T_NEAR);
     }
-    code.mov(page, qword[r14 + tmp * sizeof(void*)]);
-    code.test(page, page);
+    code.mov(page_table, qword[page_table + tmp * sizeof(void*)]);
+    code.test(page_table, page_table);
     code.jz(abort, code.T_NEAR);
     if (ctx.conf.absolute_offset_page_table) {
-        return page + vaddr;
+        return page_table + vaddr;
     }
     code.mov(tmp, vaddr);
-    code.and_(tmp, static_cast<u32>(page_mask));
-    return page + tmp;
-}
-
-template<std::size_t bitsize>
-void EmitReadMemoryMov(BlockOfCode& code, const Xbyak::Reg64& value, const Xbyak::RegExp& addr) {
-    switch (bitsize) {
-    case 8:
-        code.movzx(value.cvt32(), code.byte[addr]);
-        return;
-    case 16:
-        code.movzx(value.cvt32(), word[addr]);
-        return;
-    case 32:
-        code.mov(value.cvt32(), dword[addr]);
-        return;
-    case 64:
-        code.mov(value, qword[addr]);
-        return;
-    default:
-        ASSERT_FALSE("Invalid bitsize");
-    }
-}
-
-template<std::size_t bitsize>
-void EmitWriteMemoryMov(BlockOfCode& code, const Xbyak::RegExp& addr, const Xbyak::Reg64& value) {
-    switch (bitsize) {
-    case 8:
-        code.mov(code.byte[addr], value.cvt8());
-        return;
-    case 16:
-        code.mov(word[addr], value.cvt16());
-        return;
-    case 32:
-        code.mov(dword[addr], value.cvt32());
-        return;
-    case 64:
-        code.mov(qword[addr], value);
-        return;
-    default:
-        ASSERT_FALSE("Invalid bitsize");
-    }
+    code.and_(tmp, static_cast<u32>(page_size - 1));
+    return page_table + tmp;
 }
 
 } // anonymous namepsace
 
-template<std::size_t bitsize>
-void A64EmitX64::EmitDirectPageTableMemoryRead(A64EmitContext& ctx, IR::Inst* inst) {
-    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+void A64EmitX64::EmitDirectPageTableMemoryRead(A64EmitContext& ctx, IR::Inst* inst, size_t bitsize) {
+    Xbyak::Label abort, end;
 
+    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const Xbyak::Reg64 vaddr = ctx.reg_alloc.UseGpr(args[0]);
     const Xbyak::Reg64 value = ctx.reg_alloc.ScratchGpr();
 
-    const auto wrapped_fn = read_fallbacks[std::make_tuple(bitsize, vaddr.getIdx(), value.getIdx())];
-
-    Xbyak::Label abort, end;
-
-    const auto src_ptr = EmitVAddrLookup(code, ctx, bitsize, abort, vaddr);
-    EmitReadMemoryMov<bitsize>(code, value, src_ptr);
+    const auto src_ptr = EmitVAddrLookup(code, ctx, bitsize, abort, vaddr, value);
+    switch (bitsize) {
+    case 8:
+        code.movzx(value.cvt32(), code.byte[src_ptr]);
+        break;
+    case 16:
+        code.movzx(value.cvt32(), word[src_ptr]);
+        break;
+    case 32:
+        code.mov(value.cvt32(), dword[src_ptr]);
+        break;
+    case 64:
+        code.mov(value, qword[src_ptr]);
+        break;
+    }
     code.L(end);
 
     code.SwitchToFarCode();
     code.L(abort);
-    code.call(wrapped_fn);
+    code.call(read_fallbacks[std::make_tuple(bitsize, vaddr.getIdx(), value.getIdx())]);
     code.jmp(end, code.T_NEAR);
     code.SwitchToNearCode();
 
     ctx.reg_alloc.DefineValue(inst, value);
 }
 
-template<std::size_t bitsize>
-void A64EmitX64::EmitDirectPageTableMemoryWrite(A64EmitContext& ctx, IR::Inst* inst) {
-    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+void A64EmitX64::EmitDirectPageTableMemoryWrite(A64EmitContext& ctx, IR::Inst* inst, size_t bitsize) {
+    Xbyak::Label abort, end;
 
+    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const Xbyak::Reg64 vaddr = ctx.reg_alloc.UseGpr(args[0]);
     const Xbyak::Reg64 value = ctx.reg_alloc.UseGpr(args[1]);
 
-    const auto wrapped_fn = write_fallbacks[std::make_tuple(bitsize, vaddr.getIdx(), value.getIdx())];
-
-    Xbyak::Label abort, end;
-
     const auto dest_ptr = EmitVAddrLookup(code, ctx, bitsize, abort, vaddr);
-    EmitWriteMemoryMov<bitsize>(code, dest_ptr, value);
+    switch (bitsize) {
+    case 8:
+        code.mov(code.byte[dest_ptr], value.cvt8());
+        break;
+    case 16:
+        code.mov(word[dest_ptr], value.cvt16());
+        break;
+    case 32:
+        code.mov(dword[dest_ptr], value.cvt32());
+        break;
+    case 64:
+        code.mov(qword[dest_ptr], value);
+        break;
+    }
     code.L(end);
 
     code.SwitchToFarCode();
     code.L(abort);
-    code.call(wrapped_fn);
+    code.call(write_fallbacks[std::make_tuple(bitsize, vaddr.getIdx(), value.getIdx())]);
     code.jmp(end, code.T_NEAR);
     code.SwitchToNearCode();
 }
 
 void A64EmitX64::EmitA64ReadMemory8(A64EmitContext& ctx, IR::Inst* inst) {
     if (conf.page_table) {
-        EmitDirectPageTableMemoryRead<8>(ctx, inst);
+        EmitDirectPageTableMemoryRead(ctx, inst, 8);
         return;
     }
 
@@ -926,7 +892,7 @@ void A64EmitX64::EmitA64ReadMemory8(A64EmitContext& ctx, IR::Inst* inst) {
 
 void A64EmitX64::EmitA64ReadMemory16(A64EmitContext& ctx, IR::Inst* inst) {
     if (conf.page_table) {
-        EmitDirectPageTableMemoryRead<16>(ctx, inst);
+        EmitDirectPageTableMemoryRead(ctx, inst, 16);
         return;
     }
 
@@ -937,7 +903,7 @@ void A64EmitX64::EmitA64ReadMemory16(A64EmitContext& ctx, IR::Inst* inst) {
 
 void A64EmitX64::EmitA64ReadMemory32(A64EmitContext& ctx, IR::Inst* inst) {
     if (conf.page_table) {
-        EmitDirectPageTableMemoryRead<32>(ctx, inst);
+        EmitDirectPageTableMemoryRead(ctx, inst, 32);
         return;
     }
 
@@ -948,7 +914,7 @@ void A64EmitX64::EmitA64ReadMemory32(A64EmitContext& ctx, IR::Inst* inst) {
 
 void A64EmitX64::EmitA64ReadMemory64(A64EmitContext& ctx, IR::Inst* inst) {
     if (conf.page_table) {
-        EmitDirectPageTableMemoryRead<64>(ctx, inst);
+        EmitDirectPageTableMemoryRead(ctx, inst, 64);
         return;
     }
 
@@ -987,7 +953,7 @@ void A64EmitX64::EmitA64ReadMemory128(A64EmitContext& ctx, IR::Inst* inst) {
 
 void A64EmitX64::EmitA64WriteMemory8(A64EmitContext& ctx, IR::Inst* inst) {
     if (conf.page_table) {
-        EmitDirectPageTableMemoryWrite<8>(ctx, inst);
+        EmitDirectPageTableMemoryWrite(ctx, inst, 8);
         return;
     }
 
@@ -998,7 +964,7 @@ void A64EmitX64::EmitA64WriteMemory8(A64EmitContext& ctx, IR::Inst* inst) {
 
 void A64EmitX64::EmitA64WriteMemory16(A64EmitContext& ctx, IR::Inst* inst) {
     if (conf.page_table) {
-        EmitDirectPageTableMemoryWrite<16>(ctx, inst);
+        EmitDirectPageTableMemoryWrite(ctx, inst, 16);
         return;
     }
 
@@ -1009,7 +975,7 @@ void A64EmitX64::EmitA64WriteMemory16(A64EmitContext& ctx, IR::Inst* inst) {
 
 void A64EmitX64::EmitA64WriteMemory32(A64EmitContext& ctx, IR::Inst* inst) {
     if (conf.page_table) {
-        EmitDirectPageTableMemoryWrite<32>(ctx, inst);
+        EmitDirectPageTableMemoryWrite(ctx, inst, 32);
         return;
     }
 
@@ -1020,7 +986,7 @@ void A64EmitX64::EmitA64WriteMemory32(A64EmitContext& ctx, IR::Inst* inst) {
 
 void A64EmitX64::EmitA64WriteMemory64(A64EmitContext& ctx, IR::Inst* inst) {
     if (conf.page_table) {
-        EmitDirectPageTableMemoryWrite<64>(ctx, inst);
+        EmitDirectPageTableMemoryWrite(ctx, inst, 64);
         return;
     }
 
@@ -1057,136 +1023,126 @@ void A64EmitX64::EmitA64WriteMemory128(A64EmitContext& ctx, IR::Inst* inst) {
     code.CallFunction(memory_write_128);
 }
 
-template<std::size_t bitsize, auto callback>
-void A64EmitX64::EmitExclusiveReadMemory(A64EmitContext& ctx, IR::Inst* inst) {
-    ASSERT(conf.global_monitor != nullptr);
-    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+void A64EmitX64::EmitExclusiveWrite(A64EmitContext& ctx, IR::Inst* inst, size_t bitsize) {
+    if (conf.global_monitor) {
+        auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
-    if constexpr (bitsize != 128) {
-        using T = mp::unsigned_integer_of_size<bitsize>;
+        if (bitsize != 128) {
+            ctx.reg_alloc.HostCall(inst, {}, args[0], args[1]);
+        } else {
+            ctx.reg_alloc.Use(args[0], ABI_PARAM2);
+            ctx.reg_alloc.Use(args[1], HostLoc::XMM1);
+            ctx.reg_alloc.EndOfAllocScope();
+            ctx.reg_alloc.HostCall(inst);
+        }
 
-        ctx.reg_alloc.HostCall(inst, {}, args[0]);
+        Xbyak::Label end;
 
-        code.mov(code.byte[r15 + offsetof(A64JitState, exclusive_state)], u8(1));
+        code.mov(code.ABI_RETURN, u32(1));
+        code.cmp(code.byte[r15 + offsetof(A64JitState, exclusive_state)], u8(0));
+        code.je(end);
         code.mov(code.ABI_PARAM1, reinterpret_cast<u64>(&conf));
-        code.CallLambda(
-            [](A64::UserConfig& conf, u64 vaddr) -> T {
-                return conf.global_monitor->ReadAndMark<T>(conf.processor_id, vaddr, [&]() -> T {
-                    return (conf.callbacks->*callback)(vaddr);
-                });
-            }
-        );
-    } else {
-        const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
-        ctx.reg_alloc.Use(args[0], ABI_PARAM2);
-        ctx.reg_alloc.EndOfAllocScope();
-        ctx.reg_alloc.HostCall(nullptr);
+        switch (bitsize) {
+        case 8:
+            code.CallLambda(
+                [](A64::UserConfig& conf, u64 vaddr, u8 value) -> u32 {
+                    return conf.global_monitor->DoExclusiveOperation(conf.processor_id, vaddr, 1, [&]{
+                        conf.callbacks->MemoryWrite8(vaddr, value);
+                    }) ? 0 : 1;
+                }
+            );
+            break;
+        case 16:
+            code.CallLambda(
+                [](A64::UserConfig& conf, u64 vaddr, u16 value) -> u32 {
+                    return conf.global_monitor->DoExclusiveOperation(conf.processor_id, vaddr, 2, [&]{
+                        conf.callbacks->MemoryWrite16(vaddr, value);
+                    }) ? 0 : 1;
+                }
+            );
+            break;
+        case 32:
+            code.CallLambda(
+                [](A64::UserConfig& conf, u64 vaddr, u32 value) -> u32 {
+                    return conf.global_monitor->DoExclusiveOperation(conf.processor_id, vaddr, 4, [&]{
+                        conf.callbacks->MemoryWrite32(vaddr, value);
+                    }) ? 0 : 1;
+                }
+            );
+            break;
+        case 64:
+            code.CallLambda(
+                [](A64::UserConfig& conf, u64 vaddr, u64 value) -> u32 {
+                    return conf.global_monitor->DoExclusiveOperation(conf.processor_id, vaddr, 8, [&]{
+                        conf.callbacks->MemoryWrite64(vaddr, value);
+                    }) ? 0 : 1;
+                }
+            );
+            break;
+        case 128:
+            code.sub(rsp, 16 + ABI_SHADOW_SPACE);
+            code.lea(code.ABI_PARAM3, ptr[rsp + ABI_SHADOW_SPACE]);
+            code.movaps(xword[code.ABI_PARAM3], xmm1);
+            code.CallLambda(
+                [](A64::UserConfig& conf, u64 vaddr, A64::Vector& value) -> u32 {
+                    return conf.global_monitor->DoExclusiveOperation(conf.processor_id, vaddr, 16, [&]{
+                        conf.callbacks->MemoryWrite128(vaddr, value);
+                    }) ? 0 : 1;
+                }
+            );
+            code.add(rsp, 16 + ABI_SHADOW_SPACE);
+            break;
+        default:
+            UNREACHABLE();
+        }
+        code.L(end);
 
-        code.mov(code.byte[r15 + offsetof(A64JitState, exclusive_state)], u8(1));
-        code.mov(code.ABI_PARAM1, reinterpret_cast<u64>(&conf));
-        code.sub(rsp, 16 + ABI_SHADOW_SPACE);
-        code.lea(code.ABI_PARAM3, ptr[rsp + ABI_SHADOW_SPACE]);
-        code.CallLambda(
-            [](A64::UserConfig& conf, u64 vaddr, A64::Vector& ret) {
-                ret = conf.global_monitor->ReadAndMark<A64::Vector>(conf.processor_id, vaddr, [&]() -> A64::Vector {
-                    return (conf.callbacks->*callback)(vaddr);
-                });
-            }
-        );
-        code.movups(result, xword[rsp + ABI_SHADOW_SPACE]);
-        code.add(rsp, 16 + ABI_SHADOW_SPACE);
-
-        ctx.reg_alloc.DefineValue(inst, result);
+        return;
     }
-}
 
-void A64EmitX64::EmitA64ExclusiveReadMemory8(A64EmitContext& ctx, IR::Inst* inst) {
-    EmitExclusiveReadMemory<8, &A64::UserCallbacks::MemoryRead8>(ctx, inst);
-}
-
-void A64EmitX64::EmitA64ExclusiveReadMemory16(A64EmitContext& ctx, IR::Inst* inst) {
-    EmitExclusiveReadMemory<16, &A64::UserCallbacks::MemoryRead16>(ctx, inst);
-}
-
-void A64EmitX64::EmitA64ExclusiveReadMemory32(A64EmitContext& ctx, IR::Inst* inst) {
-    EmitExclusiveReadMemory<32, &A64::UserCallbacks::MemoryRead32>(ctx, inst);
-}
-
-void A64EmitX64::EmitA64ExclusiveReadMemory64(A64EmitContext& ctx, IR::Inst* inst) {
-    EmitExclusiveReadMemory<64, &A64::UserCallbacks::MemoryRead64>(ctx, inst);
-}
-
-void A64EmitX64::EmitA64ExclusiveReadMemory128(A64EmitContext& ctx, IR::Inst* inst) {
-    EmitExclusiveReadMemory<128, &A64::UserCallbacks::MemoryRead128>(ctx, inst);
-}
-
-template<std::size_t bitsize, auto callback>
-void A64EmitX64::EmitExclusiveWriteMemory(A64EmitContext& ctx, IR::Inst* inst) {
-    ASSERT(conf.global_monitor != nullptr);
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-
-    if constexpr (bitsize != 128) {
-        ctx.reg_alloc.HostCall(inst, {}, args[0], args[1]);
-    } else {
-        ctx.reg_alloc.Use(args[0], ABI_PARAM2);
-        ctx.reg_alloc.Use(args[1], HostLoc::XMM1);
-        ctx.reg_alloc.EndOfAllocScope();
-        ctx.reg_alloc.HostCall(inst);
-    }
+    const Xbyak::Reg64 vaddr = ctx.reg_alloc.UseGpr(args[0]);
+    const int value_idx = bitsize != 128
+                        ? ctx.reg_alloc.UseGpr(args[1]).getIdx()
+                        : ctx.reg_alloc.UseXmm(args[1]).getIdx();
 
     Xbyak::Label end;
+    const Xbyak::Reg32 passed = ctx.reg_alloc.ScratchGpr().cvt32();
+    const Xbyak::Reg64 tmp = ctx.reg_alloc.ScratchGpr();
 
-    code.mov(code.ABI_RETURN, u32(1));
+    code.mov(passed, u32(1));
     code.cmp(code.byte[r15 + offsetof(A64JitState, exclusive_state)], u8(0));
     code.je(end);
+    code.mov(tmp, vaddr);
+    code.xor_(tmp, qword[r15 + offsetof(A64JitState, exclusive_address)]);
+    code.test(tmp, static_cast<u32>(A64JitState::RESERVATION_GRANULE_MASK & 0xFFFF'FFFF));
+    code.jne(end);
     code.mov(code.byte[r15 + offsetof(A64JitState, exclusive_state)], u8(0));
-    code.mov(code.ABI_PARAM1, reinterpret_cast<u64>(&conf));
-    if constexpr (bitsize != 128) {
-        using T = mp::unsigned_integer_of_size<bitsize>;
-
-        code.CallLambda(
-            [](A64::UserConfig& conf, u64 vaddr, T value) -> u32 {
-                return conf.global_monitor->DoExclusiveOperation<T>(conf.processor_id, vaddr,
-                    [&](T expected) -> bool {
-                        return (conf.callbacks->*callback)(vaddr, value, expected);
-                    }) ? 0 : 1;
-            }
-        );
-    } else {
-        code.sub(rsp, 16 + ABI_SHADOW_SPACE);
-        code.lea(code.ABI_PARAM3, ptr[rsp + ABI_SHADOW_SPACE]);
-        code.movaps(xword[code.ABI_PARAM3], xmm1);
-        code.CallLambda(
-            [](A64::UserConfig& conf, u64 vaddr, A64::Vector& value) -> u32 {
-                return conf.global_monitor->DoExclusiveOperation<A64::Vector>(conf.processor_id, vaddr,
-                    [&](A64::Vector expected) -> bool {
-                        return (conf.callbacks->*callback)(vaddr, value, expected);
-                    }) ? 0 : 1;
-            }
-        );
-        code.add(rsp, 16 + ABI_SHADOW_SPACE);
-    }
+    code.call(write_fallbacks[std::make_tuple(bitsize, vaddr.getIdx(), value_idx)]);
+    code.xor_(passed, passed);
     code.L(end);
+
+    ctx.reg_alloc.DefineValue(inst, passed);
 }
 
 void A64EmitX64::EmitA64ExclusiveWriteMemory8(A64EmitContext& ctx, IR::Inst* inst) {
-    EmitExclusiveWriteMemory<8, &A64::UserCallbacks::MemoryWriteExclusive8>(ctx, inst);
+    EmitExclusiveWrite(ctx, inst, 8);
 }
 
 void A64EmitX64::EmitA64ExclusiveWriteMemory16(A64EmitContext& ctx, IR::Inst* inst) {
-    EmitExclusiveWriteMemory<16, &A64::UserCallbacks::MemoryWriteExclusive16>(ctx, inst);
+    EmitExclusiveWrite(ctx, inst, 16);
 }
 
 void A64EmitX64::EmitA64ExclusiveWriteMemory32(A64EmitContext& ctx, IR::Inst* inst) {
-    EmitExclusiveWriteMemory<32, &A64::UserCallbacks::MemoryWriteExclusive32>(ctx, inst);
+    EmitExclusiveWrite(ctx, inst, 32);
 }
 
 void A64EmitX64::EmitA64ExclusiveWriteMemory64(A64EmitContext& ctx, IR::Inst* inst) {
-    EmitExclusiveWriteMemory<64, &A64::UserCallbacks::MemoryWriteExclusive64>(ctx, inst);
+    EmitExclusiveWrite(ctx, inst, 64);
 }
 
 void A64EmitX64::EmitA64ExclusiveWriteMemory128(A64EmitContext& ctx, IR::Inst* inst) {
-    EmitExclusiveWriteMemory<128, &A64::UserCallbacks::MemoryWriteExclusive128>(ctx, inst);
+    EmitExclusiveWrite(ctx, inst, 128);
 }
 
 std::string A64EmitX64::LocationDescriptorToFriendlyName(const IR::LocationDescriptor& ir_descriptor) const {

@@ -228,7 +228,7 @@ bool FPMinMaxOperation(TranslatorVisitor& v, bool Q, bool sz, Vec Vm, Vec Vn, Ve
 }
 
 bool FPMinMaxNumericOperation(TranslatorVisitor& v, bool Q, bool sz, Vec Vm, Vec Vn, Vec Vd,
-                              IR::U32U64 (IREmitter::* fn)(const IR::U32U64&, const IR::U32U64&)) {
+                              IR::U32U64 (IREmitter::* fn)(const IR::U32U64&, const IR::U32U64&, bool)) {
     if (sz && !Q) {
         return v.ReservedValue();
     }
@@ -244,7 +244,7 @@ bool FPMinMaxNumericOperation(TranslatorVisitor& v, bool Q, bool sz, Vec Vm, Vec
     for (size_t i = 0; i < elements; i++) {
         const IR::UAny elem1 = v.ir.VectorGetElement(esize, operand1, i);
         const IR::UAny elem2 = v.ir.VectorGetElement(esize, operand2, i);
-        const IR::UAny result_elem = (v.ir.*fn)(elem1, elem2);
+        const IR::UAny result_elem = (v.ir.*fn)(elem1, elem2, true);
 
         result = v.ir.VectorSetElement(esize, result, i, result_elem);
     }
@@ -292,7 +292,7 @@ bool PairedMinMaxOperation(TranslatorVisitor& v, bool Q, Imm<2> size, Vec Vm, Ve
 }
 
 bool FPPairedMinMax(TranslatorVisitor& v, bool Q, bool sz, Vec Vm, Vec Vn, Vec Vd,
-                    IR::U32U64 (IREmitter::* fn)(const IR::U32U64&, const IR::U32U64&)) {
+                    IR::U32U64 (IREmitter::* fn)(const IR::U32U64&, const IR::U32U64&, bool)) {
     if (sz && !Q) {
         return v.ReservedValue();
     }
@@ -310,7 +310,7 @@ bool FPPairedMinMax(TranslatorVisitor& v, bool Q, bool sz, Vec Vm, Vec Vn, Vec V
         for (size_t i = 0; i < elements; i += 2, result_start_index++) {
             const IR::UAny elem1 = v.ir.VectorGetElement(esize, operand, i);
             const IR::UAny elem2 = v.ir.VectorGetElement(esize, operand, i + 1);
-            const IR::UAny result_elem = (v.ir.*fn)(elem1, elem2);
+            const IR::UAny result_elem = (v.ir.*fn)(elem1, elem2, true);
 
             result = v.ir.VectorSetElement(esize, result, result_start_index, result_elem);
         }
@@ -331,25 +331,35 @@ bool SaturatingArithmeticOperation(TranslatorVisitor& v, bool Q, Imm<2> size, Ve
 
     const size_t esize = 8 << size.ZeroExtend();
     const size_t datasize = Q ? 128 : 64;
+    const size_t elements = datasize / esize;
 
     const IR::U128 operand1 = v.V(datasize, Vn);
     const IR::U128 operand2 = v.V(datasize, Vm);
+    IR::U128 result = v.ir.ZeroVector();
 
-    const IR::U128 result = [&] {
-        if (sign == Signedness::Signed) {
-            if (op == Operation::Add) {
-                return v.ir.VectorSignedSaturatedAdd(esize, operand1, operand2);
+    for (size_t i = 0; i < elements; i++) {
+        const IR::UAny op1_elem = v.ir.VectorGetElement(esize, operand1, i);
+        const IR::UAny op2_elem = v.ir.VectorGetElement(esize, operand2, i);
+        const auto result_elem = [&] {
+            if (sign == Signedness::Signed) {
+                if (op == Operation::Add) {
+                    return v.ir.SignedSaturatedAdd(op1_elem, op2_elem);
+                }
+
+                return v.ir.SignedSaturatedSub(op1_elem, op2_elem);
             }
 
-            return v.ir.VectorSignedSaturatedSub(esize, operand1, operand2);
-        }
+            if (op == Operation::Add) {
+                return v.ir.UnsignedSaturatedAdd(op1_elem, op2_elem);
+            }
 
-        if (op == Operation::Add) {
-            return v.ir.VectorUnsignedSaturatedAdd(esize, operand1, operand2);
-        }
+            return v.ir.UnsignedSaturatedSub(op1_elem, op2_elem);
+        }();
 
-        return v.ir.VectorUnsignedSaturatedSub(esize, operand1, operand2);
-    }();
+        v.ir.OrQC(result_elem.overflow);
+
+        result = v.ir.VectorSetElement(esize, result, i, result_elem.result);
+    }
 
     v.V(datasize, Vd, result);
     return true;

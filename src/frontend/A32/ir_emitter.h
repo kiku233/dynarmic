@@ -5,8 +5,6 @@
 
 #pragma once
 
-#include <utility>
-
 #include "common/common_types.h"
 #include "frontend/A32/location_descriptor.h"
 #include "frontend/ir/ir_emitter.h"
@@ -35,10 +33,8 @@ public:
 
     IR::U32 GetRegister(Reg source_reg);
     IR::U32U64 GetExtendedRegister(ExtReg source_reg);
-    IR::U128 GetVector(ExtReg source_reg);
     void SetRegister(Reg dest_reg, const IR::U32& value);
     void SetExtendedRegister(ExtReg dest_reg, const IR::U32U64& value);
-    void SetVector(ExtReg dest_reg, const IR::U128& value);
 
     void ALUWritePC(const IR::U32& value);
     void BranchWritePC(const IR::U32& value);
@@ -73,16 +69,11 @@ public:
     void SetFpscrNZCV(const IR::NZCV& new_fpscr_nzcv);
 
     void ClearExclusive();
-    IR::UAny ReadMemory(size_t bitsize, const IR::U32& vaddr);
+    void SetExclusive(const IR::U32& vaddr, size_t byte_size);
     IR::U8 ReadMemory8(const IR::U32& vaddr);
     IR::U16 ReadMemory16(const IR::U32& vaddr);
     IR::U32 ReadMemory32(const IR::U32& vaddr);
     IR::U64 ReadMemory64(const IR::U32& vaddr);
-    IR::U8 ExclusiveReadMemory8(const IR::U32& vaddr);
-    IR::U16 ExclusiveReadMemory16(const IR::U32& vaddr);
-    IR::U32 ExclusiveReadMemory32(const IR::U32& vaddr);
-    std::pair<IR::U32, IR::U32> ExclusiveReadMemory64(const IR::U32& vaddr);
-    void WriteMemory(size_t bitsize, const IR::U32& vaddr, const IR::UAny& value);
     void WriteMemory8(const IR::U32& vaddr, const IR::U8& value);
     void WriteMemory16(const IR::U32& vaddr, const IR::U16& value);
     void WriteMemory32(const IR::U32& vaddr, const IR::U32& value);

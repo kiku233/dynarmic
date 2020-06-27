@@ -247,16 +247,6 @@ void BlockOfCode::SwitchMxcsrOnExit() {
     ldmxcsr(dword[r15 + jsi.offsetof_save_host_MXCSR]);
 }
 
-void BlockOfCode::EnterStandardASIMD() {
-    stmxcsr(dword[r15 + jsi.offsetof_guest_MXCSR]);
-    ldmxcsr(dword[r15 + jsi.offsetof_asimd_MXCSR]);
-}
-
-void BlockOfCode::LeaveStandardASIMD() {
-    stmxcsr(dword[r15 + jsi.offsetof_asimd_MXCSR]);
-    ldmxcsr(dword[r15 + jsi.offsetof_guest_MXCSR]);
-}
-
 void BlockOfCode::UpdateTicks() {
     cb.AddTicks->EmitCall(*this, [this](RegList param) {
         mov(param[0], qword[r15 + jsi.offsetof_cycles_to_run]);
@@ -323,71 +313,6 @@ void BlockOfCode::EnsurePatchLocationSize(CodePtr begin, size_t size) {
     size_t current_size = getCurr<const u8*>() - reinterpret_cast<const u8*>(begin);
     ASSERT(current_size <= size);
     nop(size - current_size);
-}
-
-bool BlockOfCode::HasSSSE3() const {
-    return DoesCpuSupport(Xbyak::util::Cpu::tSSSE3);
-}
-
-bool BlockOfCode::HasSSE41() const {
-    return DoesCpuSupport(Xbyak::util::Cpu::tSSE41);
-}
-
-bool BlockOfCode::HasSSE42() const {
-    return DoesCpuSupport(Xbyak::util::Cpu::tSSE42);
-}
-
-bool BlockOfCode::HasPCLMULQDQ() const {
-    return DoesCpuSupport(Xbyak::util::Cpu::tPCLMULQDQ);
-}
-
-bool BlockOfCode::HasAVX() const {
-    return DoesCpuSupport(Xbyak::util::Cpu::tAVX);
-}
-
-bool BlockOfCode::HasF16C() const {
-    return DoesCpuSupport(Xbyak::util::Cpu::tF16C);
-}
-
-bool BlockOfCode::HasAESNI() const {
-    return DoesCpuSupport(Xbyak::util::Cpu::tAESNI);
-}
-
-bool BlockOfCode::HasLZCNT() const {
-    return DoesCpuSupport(Xbyak::util::Cpu::tLZCNT);
-}
-
-bool BlockOfCode::HasBMI1() const {
-    return DoesCpuSupport(Xbyak::util::Cpu::tBMI1);
-}
-
-bool BlockOfCode::HasBMI2() const {
-    return DoesCpuSupport(Xbyak::util::Cpu::tBMI2);
-}
-
-bool BlockOfCode::HasFastBMI2() const {
-    return DoesCpuSupport(Xbyak::util::Cpu::tBMI2) && !DoesCpuSupport(Xbyak::util::Cpu::tAMD);
-}
-
-bool BlockOfCode::HasFMA() const {
-    return DoesCpuSupport(Xbyak::util::Cpu::tFMA);
-}
-
-bool BlockOfCode::HasAVX2() const {
-    return DoesCpuSupport(Xbyak::util::Cpu::tAVX2);
-}
-
-bool BlockOfCode::HasAVX512_Skylake() const {
-    // The feature set formerly known as AVX3.2. (Introduced with Skylake.)
-    return DoesCpuSupport(Xbyak::util::Cpu::tAVX512F)
-        && DoesCpuSupport(Xbyak::util::Cpu::tAVX512CD)
-        && DoesCpuSupport(Xbyak::util::Cpu::tAVX512BW)
-        && DoesCpuSupport(Xbyak::util::Cpu::tAVX512DQ)
-        && DoesCpuSupport(Xbyak::util::Cpu::tAVX512VL);
-}
-
-bool BlockOfCode::HasAVX512_BITALG() const {
-    return DoesCpuSupport(Xbyak::util::Cpu::tAVX512_BITALG);
 }
 
 bool BlockOfCode::DoesCpuSupport([[maybe_unused]] Xbyak::util::Cpu::Type type) const {

@@ -9,7 +9,6 @@
 
 #include "common/assert.h"
 #include "frontend/A32/decoder/arm.h"
-#include "frontend/A32/decoder/asimd.h"
 #include "frontend/A32/decoder/vfp.h"
 #include "frontend/A32/location_descriptor.h"
 #include "frontend/A32/translate/impl/translate_arm.h"
@@ -42,8 +41,6 @@ IR::Block TranslateArm(LocationDescriptor descriptor, MemoryReadCodeFuncType mem
 
         if (const auto vfp_decoder = DecodeVFP<ArmTranslatorVisitor>(arm_instruction)) {
             should_continue = vfp_decoder->get().call(visitor, arm_instruction);
-        } else if (const auto asimd_decoder = DecodeASIMD<ArmTranslatorVisitor>(arm_instruction)) {
-            should_continue = asimd_decoder->get().call(visitor, arm_instruction);
         } else if (const auto decoder = DecodeArm<ArmTranslatorVisitor>(arm_instruction)) {
             should_continue = decoder->get().call(visitor, arm_instruction);
         } else {
@@ -83,8 +80,6 @@ bool TranslateSingleArmInstruction(IR::Block& block, LocationDescriptor descript
     bool should_continue = true;
     if (const auto vfp_decoder = DecodeVFP<ArmTranslatorVisitor>(arm_instruction)) {
         should_continue = vfp_decoder->get().call(visitor, arm_instruction);
-    } else if (const auto asimd_decoder = DecodeASIMD<ArmTranslatorVisitor>(arm_instruction)) {
-        should_continue = asimd_decoder->get().call(visitor, arm_instruction);
     } else if (const auto decoder = DecodeArm<ArmTranslatorVisitor>(arm_instruction)) {
         should_continue = decoder->get().call(visitor, arm_instruction);
     } else {
@@ -173,21 +168,6 @@ bool ArmTranslatorVisitor::RaiseException(Exception exception) {
     ir.ExceptionRaised(exception);
     ir.SetTerm(IR::Term::CheckHalt{IR::Term::ReturnToDispatch{}});
     return false;
-}
-
-IR::UAny ArmTranslatorVisitor::I(size_t bitsize, u64 value) {
-    switch (bitsize) {
-    case 8:
-        return ir.Imm8(static_cast<u8>(value));
-    case 16:
-        return ir.Imm16(static_cast<u16>(value));
-    case 32:
-        return ir.Imm32(static_cast<u32>(value));
-    case 64:
-        return ir.Imm64(value);
-    default:
-        ASSERT_FALSE("Imm - get: Invalid bitsize");
-    }
 }
 
 IR::ResultAndCarry<IR::U32> ArmTranslatorVisitor::EmitImmShift(IR::U32 value, ShiftType type, Imm<5> imm5, IR::U1 carry_in) {

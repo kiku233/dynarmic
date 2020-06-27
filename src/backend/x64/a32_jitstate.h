@@ -37,18 +37,17 @@ struct A32JitState {
     u32 Cpsr() const;
     void SetCpsr(u32 cpsr);
 
-    alignas(16) std::array<u32, 64> ExtReg{}; // Extension registers.
+    alignas(u64) std::array<u32, 64> ExtReg{}; // Extension registers.
 
     static constexpr size_t SpillCount = 64;
-    alignas(16) std::array<std::array<u64, 2>, SpillCount> spill{}; // Spill.
+    std::array<u64, SpillCount> Spill{}; // Spill.
     static Xbyak::Address GetSpillLocationFromIndex(size_t i) {
         using namespace Xbyak::util;
-        return xword[r15 + offsetof(A32JitState, spill) + i * sizeof(u64) * 2];
+        return qword[r15 + offsetof(A32JitState, Spill) + i * sizeof(u64)];
     }
 
     // For internal use (See: BlockOfCode::RunCode)
     u32 guest_MXCSR = 0x00001f80;
-    u32 asimd_MXCSR = 0x00009fc0;
     u32 save_host_MXCSR = 0;
     s64 cycles_to_run = 0;
     s64 cycles_remaining = 0;
@@ -56,7 +55,9 @@ struct A32JitState {
     bool check_bit = false;
 
     // Exclusive state
+    static constexpr u32 RESERVATION_GRANULE_MASK = 0xFFFFFFF8;
     u32 exclusive_state = 0;
+    u32 exclusive_address = 0;
 
     static constexpr size_t RSBSize = 8; // MUST be a power of 2.
     static constexpr size_t RSBPtrMask = RSBSize - 1;
@@ -84,12 +85,12 @@ struct A32JitState {
         cpsr_jaifm = src.cpsr_jaifm;
         ExtReg = src.ExtReg;
         guest_MXCSR = src.guest_MXCSR;
-        asimd_MXCSR = src.asimd_MXCSR;
         fpsr_exc = src.fpsr_exc;
         fpsr_qc = src.fpsr_qc;
         fpsr_nzcv = src.fpsr_nzcv;
 
         exclusive_state = 0;
+        exclusive_address = 0;
 
         if (reset_rsb) {
             ResetRSB();

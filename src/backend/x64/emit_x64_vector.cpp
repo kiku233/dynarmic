@@ -164,7 +164,7 @@ void EmitX64::EmitVectorGetElement8(EmitContext& ctx, IR::Inst* inst) {
     const Xbyak::Xmm source = ctx.reg_alloc.UseXmm(args[0]);
     const Xbyak::Reg32 dest = ctx.reg_alloc.ScratchGpr().cvt32();
 
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         code.pextrb(dest, source, index);
     } else {
         code.pextrw(dest, source, index / 2);
@@ -204,7 +204,7 @@ void EmitX64::EmitVectorGetElement32(EmitContext& ctx, IR::Inst* inst) {
 
     const Xbyak::Reg32 dest = ctx.reg_alloc.ScratchGpr().cvt32();
 
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         const Xbyak::Xmm source = ctx.reg_alloc.UseXmm(args[0]);
         code.pextrd(dest, source, index);
     } else {
@@ -228,7 +228,7 @@ void EmitX64::EmitVectorGetElement64(EmitContext& ctx, IR::Inst* inst) {
 
     const Xbyak::Reg64 dest = ctx.reg_alloc.ScratchGpr().cvt64();
 
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         const Xbyak::Xmm source = ctx.reg_alloc.UseXmm(args[0]);
         code.pextrq(dest, source, 1);
     } else {
@@ -246,7 +246,7 @@ void EmitX64::EmitVectorSetElement8(EmitContext& ctx, IR::Inst* inst) {
     const u8 index = args[1].GetImmediateU8();
     const Xbyak::Xmm source_vector = ctx.reg_alloc.UseScratchXmm(args[0]);
 
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         const Xbyak::Reg8 source_elem = ctx.reg_alloc.UseGpr(args[2]).cvt8();
 
         code.pinsrb(source_vector, source_elem.cvt32(), index);
@@ -291,7 +291,7 @@ void EmitX64::EmitVectorSetElement32(EmitContext& ctx, IR::Inst* inst) {
     const u8 index = args[1].GetImmediateU8();
     const Xbyak::Xmm source_vector = ctx.reg_alloc.UseScratchXmm(args[0]);
 
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         const Xbyak::Reg32 source_elem = ctx.reg_alloc.UseGpr(args[2]).cvt32();
 
         code.pinsrd(source_vector, source_elem, index);
@@ -314,7 +314,7 @@ void EmitX64::EmitVectorSetElement64(EmitContext& ctx, IR::Inst* inst) {
     const u8 index = args[1].GetImmediateU8();
     const Xbyak::Xmm source_vector = ctx.reg_alloc.UseScratchXmm(args[0]);
 
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         const Xbyak::Reg64 source_elem = ctx.reg_alloc.UseGpr(args[2]);
 
         code.pinsrq(source_vector, source_elem, index);
@@ -337,7 +337,7 @@ void EmitX64::EmitVectorSetElement64(EmitContext& ctx, IR::Inst* inst) {
 }
 
 static void VectorAbs8(BlockOfCode& code, EmitContext& ctx, const Xbyak::Xmm& data) {
-    if (code.HasSSSE3()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSSE3)) {
         code.pabsb(data, data);
     } else {
         const Xbyak::Xmm temp = ctx.reg_alloc.ScratchXmm();
@@ -348,7 +348,7 @@ static void VectorAbs8(BlockOfCode& code, EmitContext& ctx, const Xbyak::Xmm& da
 }
 
 static void VectorAbs16(BlockOfCode& code, EmitContext& ctx, const Xbyak::Xmm& data) {
-    if (code.HasSSSE3()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSSE3)) {
         code.pabsw(data, data);
     } else {
         const Xbyak::Xmm temp = ctx.reg_alloc.ScratchXmm();
@@ -359,7 +359,7 @@ static void VectorAbs16(BlockOfCode& code, EmitContext& ctx, const Xbyak::Xmm& d
 }
 
 static void VectorAbs32(BlockOfCode& code, EmitContext& ctx, const Xbyak::Xmm& data) {
-    if (code.HasSSSE3()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSSE3)) {
         code.pabsd(data, data);
     } else {
         const Xbyak::Xmm temp = ctx.reg_alloc.ScratchXmm();
@@ -371,7 +371,7 @@ static void VectorAbs32(BlockOfCode& code, EmitContext& ctx, const Xbyak::Xmm& d
 }
 
 static void VectorAbs64(BlockOfCode& code, EmitContext& ctx, const Xbyak::Xmm& data) {
-    if (code.HasAVX512_Skylake()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512VL)) {
         code.vpabsq(data, data);
     } else {
         const Xbyak::Xmm temp = ctx.reg_alloc.ScratchXmm();
@@ -489,7 +489,7 @@ void EmitX64::EmitVectorArithmeticShiftRight64(EmitContext& ctx, IR::Inst* inst)
     const Xbyak::Xmm result = ctx.reg_alloc.UseScratchXmm(args[0]);
     const u8 shift_amount = std::min(args[1].GetImmediateU8(), u8(63));
 
-    if (code.HasAVX512_Skylake()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512VL)) {
         code.vpsraq(result, result, shift_amount);
     } else {
         const Xbyak::Xmm tmp1 = ctx.reg_alloc.ScratchXmm();
@@ -543,7 +543,7 @@ void EmitX64::EmitVectorArithmeticVShift8(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorArithmeticVShift16(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasAVX512_Skylake()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512VL) && code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512BW)) {
         auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
         const Xbyak::Xmm result = ctx.reg_alloc.UseScratchXmm(args[0]);
@@ -575,7 +575,7 @@ void EmitX64::EmitVectorArithmeticVShift16(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorArithmeticVShift32(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasAVX2()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX2)) {
         auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
         const Xbyak::Xmm result = ctx.reg_alloc.UseScratchXmm(args[0]);
@@ -606,7 +606,7 @@ void EmitX64::EmitVectorArithmeticVShift32(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorArithmeticVShift64(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasAVX512_Skylake()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512F) && code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512VL)) {
         auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
         const Xbyak::Xmm result = ctx.reg_alloc.UseScratchXmm(args[0]);
@@ -640,10 +640,10 @@ void EmitX64::EmitVectorBroadcastLower8(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const Xbyak::Xmm a = ctx.reg_alloc.UseScratchXmm(args[0]);
 
-    if (code.HasAVX2()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX2)) {
         code.vpbroadcastb(a, a);
         code.vmovq(a, a);
-    } else if (code.HasSSSE3()) {
+    } else if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSSE3)) {
         const Xbyak::Xmm tmp = ctx.reg_alloc.ScratchXmm();
 
         code.pxor(tmp, tmp);
@@ -679,9 +679,9 @@ void EmitX64::EmitVectorBroadcast8(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const Xbyak::Xmm a = ctx.reg_alloc.UseScratchXmm(args[0]);
 
-    if (code.HasAVX2()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX2)) {
         code.vpbroadcastb(a, a);
-    } else if (code.HasSSSE3()) {
+    } else if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSSE3)) {
         const Xbyak::Xmm tmp = ctx.reg_alloc.ScratchXmm();
 
         code.pxor(tmp, tmp);
@@ -699,7 +699,7 @@ void EmitX64::EmitVectorBroadcast16(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const Xbyak::Xmm a = ctx.reg_alloc.UseScratchXmm(args[0]);
 
-    if (code.HasAVX2()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX2)) {
         code.vpbroadcastw(a, a);
     } else {
         code.pshuflw(a, a, 0);
@@ -713,7 +713,7 @@ void EmitX64::EmitVectorBroadcast32(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const Xbyak::Xmm a = ctx.reg_alloc.UseScratchXmm(args[0]);
 
-    if (code.HasAVX2()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX2)) {
         code.vpbroadcastd(a, a);
     } else {
         code.pshufd(a, a, 0);
@@ -726,7 +726,7 @@ void EmitX64::EmitVectorBroadcast64(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const Xbyak::Xmm a = ctx.reg_alloc.UseScratchXmm(args[0]);
 
-    if (code.HasAVX2()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX2)) {
         code.vpbroadcastq(a, a);
     } else {
         code.punpcklqdq(a, a);
@@ -751,7 +751,7 @@ static void EmitVectorCountLeadingZeros(VectorArray<T>& result, const VectorArra
 }
 
 void EmitX64::EmitVectorCountLeadingZeros8(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasSSSE3()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSSE3)) {
         auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
         const Xbyak::Xmm data = ctx.reg_alloc.UseScratchXmm(args[0]);
@@ -780,7 +780,7 @@ void EmitX64::EmitVectorCountLeadingZeros8(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorCountLeadingZeros16(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasAVX()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
         auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
         const Xbyak::Xmm data = ctx.reg_alloc.UseScratchXmm(args[0]);
@@ -812,7 +812,7 @@ void EmitX64::EmitVectorCountLeadingZeros16(EmitContext& ctx, IR::Inst* inst) {
         return;
     }
 
-    if (code.HasSSSE3()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSSE3)) {
         auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
         const Xbyak::Xmm data = ctx.reg_alloc.UseScratchXmm(args[0]);
@@ -852,7 +852,7 @@ void EmitX64::EmitVectorCountLeadingZeros16(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorCountLeadingZeros32(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasAVX512_Skylake()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512CD) && code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512VL)) {
         auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
         const Xbyak::Xmm data = ctx.reg_alloc.UseScratchXmm(args[0]);
@@ -903,7 +903,7 @@ void EmitX64::EmitVectorDeinterleaveEven32(EmitContext& ctx, IR::Inst* inst) {
     code.pshufd(lhs, lhs, 0b10001000);
     code.pshufd(rhs, rhs, 0b10001000);
 
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         code.pblendw(lhs, rhs, 0b11110000);
     } else {
         code.punpcklqdq(lhs, rhs);
@@ -956,7 +956,7 @@ void EmitX64::EmitVectorDeinterleaveOdd32(EmitContext& ctx, IR::Inst* inst) {
     code.pshufd(lhs, lhs, 0b11011101);
     code.pshufd(rhs, rhs, 0b11011101);
 
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         code.pblendw(lhs, rhs, 0b11110000);
     } else {
         code.punpcklqdq(lhs, rhs);
@@ -992,7 +992,7 @@ void EmitX64::EmitVectorEqual32(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorEqual64(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         EmitVectorOperation(code, ctx, inst, &Xbyak::CodeGenerator::pcmpeqq);
         return;
     }
@@ -1013,7 +1013,7 @@ void EmitX64::EmitVectorEqual64(EmitContext& ctx, IR::Inst* inst) {
 void EmitX64::EmitVectorEqual128(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         const Xbyak::Xmm xmm_a = ctx.reg_alloc.UseScratchXmm(args[0]);
         const Xbyak::Xmm xmm_b = ctx.reg_alloc.UseXmm(args[1]);
         const Xbyak::Xmm tmp = ctx.reg_alloc.ScratchXmm();
@@ -1041,29 +1041,18 @@ void EmitX64::EmitVectorEqual128(EmitContext& ctx, IR::Inst* inst) {
 void EmitX64::EmitVectorExtract(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
+    const Xbyak::Xmm xmm_a = ctx.reg_alloc.UseScratchXmm(args[0]);
+
     const u8 position = args[2].GetImmediateU8();
     ASSERT(position % 8 == 0);
 
-    if (position == 0) {
-        ctx.reg_alloc.DefineValue(inst, args[0]);
-        return;
-    }
-
-    if (code.HasSSSE3()) {
-        const Xbyak::Xmm xmm_a = ctx.reg_alloc.UseXmm(args[0]);
+    if (position != 0) {
         const Xbyak::Xmm xmm_b = ctx.reg_alloc.UseScratchXmm(args[1]);
 
-        code.palignr(xmm_b, xmm_a, position / 8);
-        ctx.reg_alloc.DefineValue(inst, xmm_b);
-        return;
+        code.psrldq(xmm_a, position / 8);
+        code.pslldq(xmm_b, (128 - position) / 8);
+        code.por(xmm_a, xmm_b);
     }
-
-    const Xbyak::Xmm xmm_a = ctx.reg_alloc.UseScratchXmm(args[0]);
-    const Xbyak::Xmm xmm_b = ctx.reg_alloc.UseScratchXmm(args[1]);
-
-    code.psrldq(xmm_a, position / 8);
-    code.pslldq(xmm_b, (128 - position) / 8);
-    code.por(xmm_a, xmm_b);
 
     ctx.reg_alloc.DefineValue(inst, xmm_a);
 }
@@ -1100,7 +1089,7 @@ void EmitX64::EmitVectorGreaterS32(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorGreaterS64(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasSSE42()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE42)) {
         EmitVectorOperation(code, ctx, inst, &Xbyak::CodeGenerator::pcmpgtq);
         return;
     }
@@ -1473,7 +1462,7 @@ void EmitX64::EmitVectorLogicalVShift8(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorLogicalVShift16(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasAVX512_Skylake()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512VL) && code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512BW)) {
         auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
         const Xbyak::Xmm result = ctx.reg_alloc.UseScratchXmm(args[0]);
@@ -1501,7 +1490,7 @@ void EmitX64::EmitVectorLogicalVShift16(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorLogicalVShift32(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasAVX2()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX2)) {
         auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
         const Xbyak::Xmm result = ctx.reg_alloc.UseScratchXmm(args[0]);
@@ -1529,7 +1518,7 @@ void EmitX64::EmitVectorLogicalVShift32(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorLogicalVShift64(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasAVX2()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX2)) {
         auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
         const Xbyak::Xmm result = ctx.reg_alloc.UseScratchXmm(args[0]);
@@ -1557,7 +1546,7 @@ void EmitX64::EmitVectorLogicalVShift64(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorMaxS8(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         EmitVectorOperation(code, ctx, inst, &Xbyak::CodeGenerator::pmaxsb);
         return;
     }
@@ -1582,7 +1571,7 @@ void EmitX64::EmitVectorMaxS16(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorMaxS32(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         EmitVectorOperation(code, ctx, inst, &Xbyak::CodeGenerator::pmaxsd);
         return;
     }
@@ -1603,12 +1592,12 @@ void EmitX64::EmitVectorMaxS32(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorMaxS64(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasAVX512_Skylake()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512VL)) {
         EmitAVXVectorOperation(code, ctx, inst, &Xbyak::CodeGenerator::vpmaxsq);
         return;
     }
 
-    if (code.HasAVX()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
         auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
         const Xbyak::Xmm x = ctx.reg_alloc.UseScratchXmm(args[0]);
@@ -1631,7 +1620,7 @@ void EmitX64::EmitVectorMaxU8(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorMaxU16(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         EmitVectorOperation(code, ctx, inst, &Xbyak::CodeGenerator::pmaxuw);
         return;
     }
@@ -1647,7 +1636,7 @@ void EmitX64::EmitVectorMaxU16(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorMaxU32(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         EmitVectorOperation(code, ctx, inst, &Xbyak::CodeGenerator::pmaxud);
         return;
     }
@@ -1674,12 +1663,12 @@ void EmitX64::EmitVectorMaxU32(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorMaxU64(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasAVX512_Skylake()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512VL)) {
         EmitAVXVectorOperation(code, ctx, inst, &Xbyak::CodeGenerator::vpmaxuq);
         return;
     }
 
-    if (code.HasAVX()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
         auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
         const Xbyak::Xmm x = ctx.reg_alloc.UseScratchXmm(args[0]);
@@ -1702,7 +1691,7 @@ void EmitX64::EmitVectorMaxU64(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorMinS8(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         EmitVectorOperation(code, ctx, inst, &Xbyak::CodeGenerator::pminsb);
         return;
     }
@@ -1727,7 +1716,7 @@ void EmitX64::EmitVectorMinS16(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorMinS32(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         EmitVectorOperation(code, ctx, inst, &Xbyak::CodeGenerator::pminsd);
         return;
     }
@@ -1748,12 +1737,12 @@ void EmitX64::EmitVectorMinS32(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorMinS64(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasAVX512_Skylake()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512VL)) {
         EmitAVXVectorOperation(code, ctx, inst, &Xbyak::CodeGenerator::vpminsq);
         return;
     }
 
-    if (code.HasAVX()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
         auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
         const Xbyak::Xmm x = ctx.reg_alloc.UseXmm(args[0]);
@@ -1776,7 +1765,7 @@ void EmitX64::EmitVectorMinU8(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorMinU16(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         EmitVectorOperation(code, ctx, inst, &Xbyak::CodeGenerator::pminuw);
         return;
     }
@@ -1795,7 +1784,7 @@ void EmitX64::EmitVectorMinU16(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorMinU32(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         EmitVectorOperation(code, ctx, inst, &Xbyak::CodeGenerator::pminud);
         return;
     }
@@ -1824,12 +1813,12 @@ void EmitX64::EmitVectorMinU32(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorMinU64(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasAVX512_Skylake()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512VL)) {
         EmitAVXVectorOperation(code, ctx, inst, &Xbyak::CodeGenerator::vpminuq);
         return;
     }
 
-    if (code.HasAVX()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
         auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
         const Xbyak::Xmm x = ctx.reg_alloc.UseXmm(args[0]);
@@ -1877,7 +1866,7 @@ void EmitX64::EmitVectorMultiply16(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorMultiply32(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         EmitVectorOperation(code, ctx, inst, &Xbyak::CodeGenerator::pmulld);
         return;
     }
@@ -1900,14 +1889,14 @@ void EmitX64::EmitVectorMultiply32(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorMultiply64(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasAVX512_Skylake()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512DQ) && code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512VL)) {
         EmitAVXVectorOperation(code, ctx, inst, &Xbyak::CodeGenerator::vpmullq);
         return;
     }
 
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         const Xbyak::Xmm a = ctx.reg_alloc.UseScratchXmm(args[0]);
         const Xbyak::Xmm b = ctx.reg_alloc.UseXmm(args[1]);
         const Xbyak::Reg64 tmp1 = ctx.reg_alloc.ScratchGpr();
@@ -1953,7 +1942,7 @@ void EmitX64::EmitVectorMultiply64(EmitContext& ctx, IR::Inst* inst) {
 void EmitX64::EmitVectorNarrow16(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
-    if (code.HasAVX512_Skylake()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512VL) && code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512BW)) {
         const Xbyak::Xmm a = ctx.reg_alloc.UseXmm(args[0]);
         const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
 
@@ -1981,7 +1970,7 @@ void EmitX64::EmitVectorNarrow32(EmitContext& ctx, IR::Inst* inst) {
     // TODO: AVX512F implementation
 
     code.pxor(zeros, zeros);
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         code.pblendw(a, zeros, 0b10101010);
         code.packusdw(a, zeros);
     } else {
@@ -2048,7 +2037,7 @@ void EmitX64::EmitVectorPairedAddLower16(EmitContext& ctx, IR::Inst* inst) {
     const Xbyak::Xmm tmp = ctx.reg_alloc.ScratchXmm();
 
     code.punpcklqdq(xmm_a, xmm_b);
-    if (code.HasSSSE3()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSSE3)) {
         code.pxor(tmp, tmp);
         code.phaddw(xmm_a, tmp);
     } else {
@@ -2071,7 +2060,7 @@ void EmitX64::EmitVectorPairedAddLower32(EmitContext& ctx, IR::Inst* inst) {
     const Xbyak::Xmm tmp = ctx.reg_alloc.ScratchXmm();
 
     code.punpcklqdq(xmm_a, xmm_b);
-    if (code.HasSSSE3()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSSE3)) {
         code.pxor(tmp, tmp);
         code.phaddd(xmm_a, tmp);
     } else {
@@ -2109,7 +2098,7 @@ void EmitX64::EmitVectorPairedAdd8(EmitContext& ctx, IR::Inst* inst) {
 void EmitX64::EmitVectorPairedAdd16(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
-    if (code.HasSSSE3()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSSE3)) {
         const Xbyak::Xmm a = ctx.reg_alloc.UseScratchXmm(args[0]);
         const Xbyak::Xmm b = ctx.reg_alloc.UseXmm(args[1]);
 
@@ -2139,7 +2128,7 @@ void EmitX64::EmitVectorPairedAdd16(EmitContext& ctx, IR::Inst* inst) {
 void EmitX64::EmitVectorPairedAdd32(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
-    if (code.HasSSSE3()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSSE3)) {
         const Xbyak::Xmm a = ctx.reg_alloc.UseScratchXmm(args[0]);
         const Xbyak::Xmm b = ctx.reg_alloc.UseXmm(args[1]);
 
@@ -2215,7 +2204,7 @@ void EmitX64::EmitVectorPairedAddSignedWiden32(EmitContext& ctx, IR::Inst* inst)
     const Xbyak::Xmm a = ctx.reg_alloc.UseScratchXmm(args[0]);
     const Xbyak::Xmm c = ctx.reg_alloc.ScratchXmm();
 
-    if (code.HasAVX512_Skylake()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512VL)) {
         code.vpsraq(c, a, 32);
         code.vpsllq(a, a, 32);
         code.vpsraq(a, a, 32);
@@ -2332,7 +2321,7 @@ void EmitX64::EmitVectorPairedMaxS32(EmitContext& ctx, IR::Inst* inst) {
     code.shufps(tmp, y, 0b10001000);
     code.shufps(x, y, 0b11011101);
 
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         code.pmaxsd(x, tmp);
 
         ctx.reg_alloc.DefineValue(inst, x);
@@ -2372,7 +2361,7 @@ void EmitX64::EmitVectorPairedMaxU32(EmitContext& ctx, IR::Inst* inst) {
     code.shufps(tmp1, y, 0b10001000);
     code.shufps(x, y, 0b11011101);
 
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         code.pmaxud(x, tmp1);
 
         ctx.reg_alloc.DefineValue(inst, x);
@@ -2417,7 +2406,7 @@ void EmitX64::EmitVectorPairedMinS32(EmitContext& ctx, IR::Inst* inst) {
     code.shufps(tmp, y, 0b10001000);
     code.shufps(x, y, 0b11011101);
 
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         code.pminsd(x, tmp);
 
         ctx.reg_alloc.DefineValue(inst, x);
@@ -2457,7 +2446,7 @@ void EmitX64::EmitVectorPairedMinU32(EmitContext& ctx, IR::Inst* inst) {
     code.shufps(tmp1, y, 0b10001000);
     code.shufps(x, y, 0b11011101);
 
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         code.pminud(x, tmp1);
 
         ctx.reg_alloc.DefineValue(inst, x);
@@ -2495,86 +2484,12 @@ static D PolynomialMultiply(T lhs, T rhs) {
 }
 
 void EmitX64::EmitVectorPolynomialMultiply8(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasSSE41()) {
-        auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-        const Xbyak::Xmm xmm_a = ctx.reg_alloc.UseScratchXmm(args[0]);
-        const Xbyak::Xmm xmm_b = ctx.reg_alloc.UseXmm(args[1]);
-        const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
-        const Xbyak::Xmm alternate = ctx.reg_alloc.ScratchXmm();
-        const Xbyak::Xmm mask = ctx.reg_alloc.ScratchXmm();
-        const Xbyak::Reg32 counter = ctx.reg_alloc.ScratchGpr().cvt32();
-
-        Xbyak::Label loop;
-
-        code.pxor(result, result);
-        code.movdqa(mask, code.MConst(xword, 0x0101010101010101, 0x0101010101010101));
-        code.mov(counter, 8);
-
-        code.L(loop);
-        if (code.HasAVX()) {
-            code.vpand(xmm0, xmm_b, mask);
-            code.vpxor(alternate, result, xmm_a);
-        } else {
-            code.movdqa(xmm0, xmm_b);
-            code.movdqa(alternate, result);
-            code.pand(xmm0, mask);
-            code.pxor(alternate, xmm_a);
-        }
-        code.pcmpeqb(xmm0, mask);
-        code.paddb(mask, mask);
-        code.paddb(xmm_a, xmm_a);
-        code.pblendvb(result, alternate);
-        code.dec(counter);
-        code.jnz(loop);
-
-        ctx.reg_alloc.DefineValue(inst, result);
-        return;
-    }
-
     EmitTwoArgumentFallback(code, ctx, inst, [](VectorArray<u8>& result, const VectorArray<u8>& a, const VectorArray<u8>& b) {
         std::transform(a.begin(), a.end(), b.begin(), result.begin(), PolynomialMultiply<u8, u8>);
     });
 }
 
 void EmitX64::EmitVectorPolynomialMultiplyLong8(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasSSE41()) {
-        auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-        const Xbyak::Xmm xmm_a = ctx.reg_alloc.UseScratchXmm(args[0]);
-        const Xbyak::Xmm xmm_b = ctx.reg_alloc.UseScratchXmm(args[1]);
-        const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
-        const Xbyak::Xmm alternate = ctx.reg_alloc.ScratchXmm();
-        const Xbyak::Xmm mask = ctx.reg_alloc.ScratchXmm();
-        const Xbyak::Reg32 counter = ctx.reg_alloc.ScratchGpr().cvt32();
-
-        Xbyak::Label loop;
-
-        code.pmovzxbw(xmm_a, xmm_a);
-        code.pmovzxbw(xmm_b, xmm_b);
-        code.pxor(result, result);
-        code.movdqa(mask, code.MConst(xword, 0x0001000100010001, 0x0001000100010001));
-        code.mov(counter, 8);
-
-        code.L(loop);
-        if (code.HasAVX()) {
-            code.vpand(xmm0, xmm_b, mask);
-            code.vpxor(alternate, result, xmm_a);
-        } else {
-            code.movdqa(xmm0, xmm_b);
-            code.movdqa(alternate, result);
-            code.pand(xmm0, mask);
-            code.pxor(alternate, xmm_a);
-        }
-        code.pcmpeqw(xmm0, mask);
-        code.paddw(mask, mask);
-        code.paddw(xmm_a, xmm_a);
-        code.pblendvb(result, alternate);
-        code.dec(counter);
-        code.jnz(loop);
-
-        ctx.reg_alloc.DefineValue(inst, result);
-        return;
-    }
-
     EmitTwoArgumentFallback(code, ctx, inst, [](VectorArray<u16>& result, const VectorArray<u8>& a, const VectorArray<u8>& b) {
         for (size_t i = 0; i < result.size(); i++) {
             result[i] = PolynomialMultiply<u16, u8>(a[i], b[i]);
@@ -2583,17 +2498,6 @@ void EmitX64::EmitVectorPolynomialMultiplyLong8(EmitContext& ctx, IR::Inst* inst
 }
 
 void EmitX64::EmitVectorPolynomialMultiplyLong64(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasPCLMULQDQ()) {
-        auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-        const Xbyak::Xmm xmm_a = ctx.reg_alloc.UseScratchXmm(args[0]);
-        const Xbyak::Xmm xmm_b = ctx.reg_alloc.UseXmm(args[1]);
-
-        code.pclmulqdq(xmm_a, xmm_b, 0x00);
-
-        ctx.reg_alloc.DefineValue(inst, xmm_a);
-        return;
-    }
-
     EmitTwoArgumentFallback(code, ctx, inst, [](VectorArray<u64>& result, const VectorArray<u64>& a, const VectorArray<u64>& b) {
         const auto handle_high_bits = [](u64 lhs, u64 rhs) {
             constexpr size_t bit_size = Common::BitSize<u64>();
@@ -2614,7 +2518,7 @@ void EmitX64::EmitVectorPolynomialMultiplyLong64(EmitContext& ctx, IR::Inst* ins
 }
 
 void EmitX64::EmitVectorPopulationCount(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasAVX512_BITALG()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512_BITALG)) {
         auto args = ctx.reg_alloc.GetArgumentInfo(inst);
         const Xbyak::Xmm data = ctx.reg_alloc.UseScratchXmm(args[0]);
 
@@ -2624,7 +2528,7 @@ void EmitX64::EmitVectorPopulationCount(EmitContext& ctx, IR::Inst* inst) {
         return;
     }
 
-    if (code.HasSSSE3()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSSE3)) {
         auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
         const Xbyak::Xmm low_a = ctx.reg_alloc.UseScratchXmm(args[0]);
@@ -2667,7 +2571,7 @@ void EmitX64::EmitVectorReverseBits(EmitContext& ctx, IR::Inst* inst) {
     code.pxor(data, high_nibble_reg);
     code.psrld(high_nibble_reg, 4);
 
-    if (code.HasSSSE3()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSSE3)) {
         // High lookup
         const Xbyak::Xmm high_reversed_reg = ctx.reg_alloc.ScratchXmm();
         code.movdqa(high_reversed_reg, code.MConst(xword, 0xE060A020C0408000, 0xF070B030D0509010));
@@ -2907,7 +2811,7 @@ void EmitX64::EmitVectorShuffleWords(EmitContext& ctx, IR::Inst* inst) {
 
 void EmitX64::EmitVectorSignExtend8(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         const Xbyak::Xmm a = ctx.reg_alloc.UseScratchXmm(args[0]);
         code.pmovsxbw(a, a);
         ctx.reg_alloc.DefineValue(inst, a);
@@ -2923,7 +2827,7 @@ void EmitX64::EmitVectorSignExtend8(EmitContext& ctx, IR::Inst* inst) {
 
 void EmitX64::EmitVectorSignExtend16(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         const Xbyak::Xmm a = ctx.reg_alloc.UseScratchXmm(args[0]);
         code.pmovsxwd(a, a);
         ctx.reg_alloc.DefineValue(inst, a);
@@ -2941,7 +2845,7 @@ void EmitX64::EmitVectorSignExtend32(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const Xbyak::Xmm a = ctx.reg_alloc.UseScratchXmm(args[0]);
 
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         code.pmovsxdq(a, a);
     } else {
         const Xbyak::Xmm tmp = ctx.reg_alloc.ScratchXmm();
@@ -2963,7 +2867,7 @@ void EmitX64::EmitVectorSignExtend64(EmitContext& ctx, IR::Inst* inst) {
     code.movq(gpr_tmp, data);
     code.sar(gpr_tmp, 63);
 
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         code.pinsrq(data, gpr_tmp, 1);
     } else {
         const Xbyak::Xmm xmm_tmp = ctx.reg_alloc.ScratchXmm();
@@ -3034,7 +2938,7 @@ void EmitX64::EmitVectorSignedMultiply16(EmitContext& ctx, IR::Inst* inst) {
 
     if (upper_inst) {
         const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
-        if (code.HasAVX()) {
+        if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
             code.vpmulhw(result, x, y);
         } else {
             code.movdqa(result, x);
@@ -3047,7 +2951,7 @@ void EmitX64::EmitVectorSignedMultiply16(EmitContext& ctx, IR::Inst* inst) {
 
     if (lower_inst) {
         const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
-        if (code.HasAVX()) {
+        if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
             code.vpmullw(result, x, y);
         } else {
             code.movdqa(result, x);
@@ -3064,7 +2968,7 @@ void EmitX64::EmitVectorSignedMultiply32(EmitContext& ctx, IR::Inst* inst) {
 
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
-    if (lower_inst && !upper_inst && code.HasAVX()) {
+    if (lower_inst && !upper_inst && code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
         const Xbyak::Xmm x = ctx.reg_alloc.UseXmm(args[0]);
         const Xbyak::Xmm y = ctx.reg_alloc.UseXmm(args[1]);
         const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
@@ -3076,7 +2980,7 @@ void EmitX64::EmitVectorSignedMultiply32(EmitContext& ctx, IR::Inst* inst) {
         return;
     }
 
-    if (code.HasAVX()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
         const Xbyak::Xmm x = ctx.reg_alloc.UseScratchXmm(args[0]);
         const Xbyak::Xmm y = ctx.reg_alloc.UseScratchXmm(args[1]);
 
@@ -3233,7 +3137,7 @@ void EmitX64::EmitVectorSignedSaturatedAbs32(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorSignedSaturatedAbs64(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         EmitVectorSignedSaturatedAbs(64, code, ctx, inst);
         return;
     }
@@ -3268,7 +3172,7 @@ static void EmitVectorSignedSaturatedAccumulateUnsigned(BlockOfCode& code, EmitC
 
     switch (bit_width) {
     case 8:
-        if (code.HasAVX()) {
+        if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
             code.vpaddb(result, x, xmm0);
         } else {
             code.movdqa(result, x);
@@ -3276,7 +3180,7 @@ static void EmitVectorSignedSaturatedAccumulateUnsigned(BlockOfCode& code, EmitC
         }
         break;
     case 16:
-        if (code.HasAVX()) {
+        if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
             code.vpaddw(result, x, xmm0);
         } else {
             code.movdqa(result, x);
@@ -3284,7 +3188,7 @@ static void EmitVectorSignedSaturatedAccumulateUnsigned(BlockOfCode& code, EmitC
         }
         break;
     case 32:
-        if (code.HasAVX()) {
+        if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
             code.vpaddd(result, x, xmm0);
         } else {
             code.movdqa(result, x);
@@ -3292,7 +3196,7 @@ static void EmitVectorSignedSaturatedAccumulateUnsigned(BlockOfCode& code, EmitC
         }
         break;
     case 64:
-        if (code.HasAVX()) {
+        if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
             code.vpaddq(result, x, xmm0);
         } else {
             code.movdqa(result, x);
@@ -3301,10 +3205,10 @@ static void EmitVectorSignedSaturatedAccumulateUnsigned(BlockOfCode& code, EmitC
         break;
     }
 
-    if (code.HasAVX512_Skylake()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512VL)) {
         // xmm0 = majority(~y, x, res)
         code.vpternlogd(xmm0, x, result, 0b10001110);
-    } else if (code.HasAVX()) {
+    } else if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
         code.vpor(tmp, x, result);
         code.pand(x, result);
         code.vpblendvb(xmm0, tmp, x, xmm0);
@@ -3320,7 +3224,7 @@ static void EmitVectorSignedSaturatedAccumulateUnsigned(BlockOfCode& code, EmitC
 
     switch (bit_width) {
     case 8:
-        if (code.HasAVX()) {
+        if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
             const Xbyak::Xmm tmp2 = ctx.reg_alloc.ScratchXmm();
             code.pcmpeqb(tmp2, tmp2);
             code.pxor(tmp, tmp);
@@ -3341,7 +3245,7 @@ static void EmitVectorSignedSaturatedAccumulateUnsigned(BlockOfCode& code, EmitC
         code.psrad(xmm0, 31);
         break;
     case 64:
-        if (code.HasAVX512_Skylake()) {
+        if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512VL)) {
             code.vpsraq(xmm0, xmm0, 63);
         } else {
             code.psrad(xmm0, 31);
@@ -3371,7 +3275,7 @@ static void EmitVectorSignedSaturatedAccumulateUnsigned(BlockOfCode& code, EmitC
     code.pmovmskb(mask, xmm0);
     code.or_(code.dword[code.r15 + code.GetJitStateInfo().offsetof_fpsr_qc], mask);
 
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         code.pblendvb(result, tmp);
     } else {
         code.pandn(xmm0, result);
@@ -3408,14 +3312,14 @@ void EmitX64::EmitVectorSignedSaturatedDoublingMultiply16(EmitContext& ctx, IR::
     const Xbyak::Xmm upper_tmp = ctx.reg_alloc.ScratchXmm();
     const Xbyak::Xmm lower_tmp = ctx.reg_alloc.ScratchXmm();
 
-    if (code.HasAVX()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
         code.vpmulhw(upper_tmp, x, y);
     } else {
         code.movdqa(upper_tmp, x);
         code.pmulhw(upper_tmp, y);
     }
 
-    if (code.HasAVX()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
         code.vpmullw(lower_tmp, x, y);
     } else {
         code.movdqa(lower_tmp, x);
@@ -3428,7 +3332,7 @@ void EmitX64::EmitVectorSignedSaturatedDoublingMultiply16(EmitContext& ctx, IR::
     if (lower_inst) {
         const Xbyak::Xmm lower_result = ctx.reg_alloc.ScratchXmm();
 
-        if (code.HasAVX()) {
+        if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
             code.vpaddw(lower_result, lower_tmp, lower_tmp);
         } else {
             code.movdqa(lower_result, lower_tmp);
@@ -3442,7 +3346,7 @@ void EmitX64::EmitVectorSignedSaturatedDoublingMultiply16(EmitContext& ctx, IR::
     if (upper_inst) {
         const Xbyak::Xmm upper_result = ctx.reg_alloc.ScratchXmm();
 
-        if (code.HasAVX()) {
+        if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
             code.vpsrlw(lower_tmp, lower_tmp, 15);
             code.vpaddw(upper_tmp, upper_tmp, upper_tmp);
             code.vpor(upper_result, upper_tmp, lower_tmp);
@@ -3473,7 +3377,7 @@ void EmitX64::EmitVectorSignedSaturatedDoublingMultiply32(EmitContext& ctx, IR::
 
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
-    if (code.HasAVX()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
         const Xbyak::Xmm x = ctx.reg_alloc.UseScratchXmm(args[0]);
         const Xbyak::Xmm y = ctx.reg_alloc.UseScratchXmm(args[1]);
         const Xbyak::Xmm odds = ctx.reg_alloc.ScratchXmm();
@@ -3593,7 +3497,7 @@ void EmitX64::EmitVectorSignedSaturatedDoublingMultiplyLong16(EmitContext& ctx, 
     code.punpcklwd(y, y);
     code.pmaddwd(x, y);
 
-    if (code.HasAVX()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
         code.vpcmpeqd(y, x, code.MConst(xword, 0x8000000080000000, 0x8000000080000000));
         code.vpxor(x, x, y);
     } else {
@@ -3615,7 +3519,7 @@ void EmitX64::EmitVectorSignedSaturatedDoublingMultiplyLong32(EmitContext& ctx, 
     const Xbyak::Xmm x = ctx.reg_alloc.UseScratchXmm(args[0]);
     const Xbyak::Xmm y = ctx.reg_alloc.UseScratchXmm(args[1]);
 
-    if (code.HasAVX()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
         code.vpmovsxdq(x, x);
         code.vpmovsxdq(y, y);
         code.vpmuldq(x, x, y);
@@ -3646,7 +3550,7 @@ void EmitX64::EmitVectorSignedSaturatedDoublingMultiplyLong32(EmitContext& ctx, 
     }
 
     const Xbyak::Reg32 bit = ctx.reg_alloc.ScratchGpr().cvt32();
-    if (code.HasAVX()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
         code.vpcmpeqq(y, x, code.MConst(xword, 0x8000000000000000, 0x8000000000000000));
         code.vpxor(x, x, y);
         code.vpmovmskb(bit, y);
@@ -3737,7 +3641,7 @@ static void EmitVectorSignedSaturatedNarrowToUnsigned(size_t original_esize, Blo
         code.punpcklbw(reconstructed, zero);
         break;
     case 32:
-        ASSERT(code.HasSSE41());
+        ASSERT(code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41));
         code.packusdw(dest, dest); // SSE4.1
         code.movdqa(reconstructed, dest);
         code.punpcklwd(reconstructed, zero);
@@ -3760,7 +3664,7 @@ void EmitX64::EmitVectorSignedSaturatedNarrowToUnsigned16(EmitContext& ctx, IR::
 }
 
 void EmitX64::EmitVectorSignedSaturatedNarrowToUnsigned32(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         EmitVectorSignedSaturatedNarrowToUnsigned(32, code, ctx, inst);
         return;
     }
@@ -3869,7 +3773,7 @@ void EmitX64::EmitVectorSignedSaturatedNeg32(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorSignedSaturatedNeg64(EmitContext& ctx, IR::Inst* inst) {
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         EmitVectorSignedSaturatedNeg(64, code, ctx, inst);
         return;
     }
@@ -4029,174 +3933,7 @@ void EmitX64::EmitVectorTable(EmitContext&, IR::Inst* inst) {
     ASSERT_MSG(inst->UseCount() == 1, "Table cannot be used multiple times");
 }
 
-void EmitX64::EmitVectorTableLookup64(EmitContext& ctx, IR::Inst* inst) {
-    ASSERT(inst->GetArg(1).GetInst()->GetOpcode() == IR::Opcode::VectorTable);
-
-    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    auto table = ctx.reg_alloc.GetArgumentInfo(inst->GetArg(1).GetInst());
-
-    const size_t table_size = std::count_if(table.begin(), table.end(), [](const auto& elem){ return !elem.IsVoid(); });
-    const bool is_defaults_zero = inst->GetArg(0).IsZero();
-
-    // TODO: AVX512VL implementation when available (VPERMB / VPERMI2B / VPERMT2B)
-
-    const std::array<u64, 5> sat_const{
-        0,
-        0x7878787878787878,
-        0x7070707070707070,
-        0x6868686868686868,
-        0x6060606060606060,
-    };
-
-    if (code.HasSSSE3() && is_defaults_zero && table_size <= 2) {
-        const Xbyak::Xmm indicies = ctx.reg_alloc.UseScratchXmm(args[2]);
-        const Xbyak::Xmm xmm_table0 = ctx.reg_alloc.UseScratchXmm(table[0]);
-
-        if (table_size == 2) {
-            const Xbyak::Xmm xmm_table0_upper = ctx.reg_alloc.UseXmm(table[1]);
-            code.punpcklqdq(xmm_table0, xmm_table0_upper);
-            ctx.reg_alloc.Release(xmm_table0_upper);
-        }
-
-        code.paddusb(indicies, code.MConst(xword, 0x7070707070707070, 0xFFFFFFFFFFFFFFFF));
-        code.pshufb(xmm_table0, indicies);
-
-        ctx.reg_alloc.DefineValue(inst, xmm_table0);
-        return;
-    }
-
-    if (code.HasSSE41() && table_size <= 2) {
-        const Xbyak::Xmm indicies = ctx.reg_alloc.UseXmm(args[2]);
-        const Xbyak::Xmm defaults = ctx.reg_alloc.UseXmm(args[0]);
-        const Xbyak::Xmm xmm_table0 = ctx.reg_alloc.UseScratchXmm(table[0]);
-
-        if (table_size == 2) {
-            const Xbyak::Xmm xmm_table0_upper = ctx.reg_alloc.UseXmm(table[1]);
-            code.punpcklqdq(xmm_table0, xmm_table0_upper);
-            ctx.reg_alloc.Release(xmm_table0_upper);
-        }
-
-        if (code.HasAVX()) {
-            code.vpaddusb(xmm0, indicies, code.MConst(xword, sat_const[table_size], 0xFFFFFFFFFFFFFFFF));
-        } else {
-            code.movaps(xmm0, indicies);
-            code.paddusb(xmm0, code.MConst(xword, sat_const[table_size], 0xFFFFFFFFFFFFFFFF));
-        }
-        code.pshufb(xmm_table0, indicies);
-        code.pblendvb(xmm_table0, defaults);
-
-        ctx.reg_alloc.DefineValue(inst, xmm_table0);
-        return;
-    }
-
-    if (code.HasSSE41() && is_defaults_zero) {
-        const Xbyak::Xmm indicies = ctx.reg_alloc.UseScratchXmm(args[2]);
-        const Xbyak::Xmm xmm_table0 = ctx.reg_alloc.UseScratchXmm(table[0]);
-        const Xbyak::Xmm xmm_table1 = ctx.reg_alloc.UseScratchXmm(table[2]);
-
-        {
-            const Xbyak::Xmm xmm_table0_upper = ctx.reg_alloc.UseXmm(table[1]);
-            code.punpcklqdq(xmm_table0, xmm_table0_upper);
-            ctx.reg_alloc.Release(xmm_table0_upper);
-        }
-        if (table_size == 4) {
-            const Xbyak::Xmm xmm_table1_upper = ctx.reg_alloc.UseXmm(table[3]);
-            code.punpcklqdq(xmm_table1, xmm_table1_upper);
-            ctx.reg_alloc.Release(xmm_table1_upper);
-        }
-
-        if (code.HasAVX()) {
-            code.vpaddusb(xmm0, indicies, code.MConst(xword, 0x7070707070707070, 0xFFFFFFFFFFFFFFFF));
-        } else {
-            code.movaps(xmm0, indicies);
-            code.paddusb(xmm0, code.MConst(xword, 0x7070707070707070, 0xFFFFFFFFFFFFFFFF));
-        }
-        code.paddusb(indicies, code.MConst(xword, 0x6060606060606060, 0xFFFFFFFFFFFFFFFF));
-        code.pshufb(xmm_table0, xmm0);
-        code.pshufb(xmm_table1, indicies);
-        code.pblendvb(xmm_table0, xmm_table1);
-
-        ctx.reg_alloc.DefineValue(inst, xmm_table0);
-        return;
-    }
-
-    if (code.HasSSE41()) {
-        const Xbyak::Xmm indicies = ctx.reg_alloc.UseScratchXmm(args[2]);
-        const Xbyak::Xmm defaults = ctx.reg_alloc.UseXmm(args[0]);
-        const Xbyak::Xmm xmm_table0 = ctx.reg_alloc.UseScratchXmm(table[0]);
-        const Xbyak::Xmm xmm_table1 = ctx.reg_alloc.UseScratchXmm(table[2]);
-
-        {
-            const Xbyak::Xmm xmm_table0_upper = ctx.reg_alloc.UseXmm(table[1]);
-            code.punpcklqdq(xmm_table0, xmm_table0_upper);
-            ctx.reg_alloc.Release(xmm_table0_upper);
-        }
-        if (table_size == 4) {
-            const Xbyak::Xmm xmm_table1_upper = ctx.reg_alloc.UseXmm(table[3]);
-            code.punpcklqdq(xmm_table1, xmm_table1_upper);
-            ctx.reg_alloc.Release(xmm_table1_upper);
-        }
-
-        if (code.HasAVX()) {
-            code.vpaddusb(xmm0, indicies, code.MConst(xword, 0x7070707070707070, 0xFFFFFFFFFFFFFFFF));
-        } else {
-            code.movaps(xmm0, indicies);
-            code.paddusb(xmm0, code.MConst(xword, 0x7070707070707070, 0xFFFFFFFFFFFFFFFF));
-        }
-        code.pshufb(xmm_table0, indicies);
-        code.pshufb(xmm_table1, indicies);
-        code.pblendvb(xmm_table0, xmm_table1);
-        if (code.HasAVX()) {
-            code.vpaddusb(xmm0, indicies, code.MConst(xword, sat_const[table_size], 0xFFFFFFFFFFFFFFFF));
-        } else {
-            code.movaps(xmm0, indicies);
-            code.paddusb(xmm0, code.MConst(xword, sat_const[table_size], 0xFFFFFFFFFFFFFFFF));
-        }
-        code.pblendvb(xmm_table0, defaults);
-
-        ctx.reg_alloc.DefineValue(inst, xmm_table0);
-        return;
-    }
-
-    const u32 stack_space = static_cast<u32>(6 * 8);
-    code.sub(rsp, stack_space + ABI_SHADOW_SPACE);
-    for (size_t i = 0; i < table_size; ++i) {
-        const Xbyak::Xmm table_value = ctx.reg_alloc.UseXmm(table[i]);
-        code.movq(qword[rsp + ABI_SHADOW_SPACE + i * 8], table_value);
-        ctx.reg_alloc.Release(table_value);
-    }
-    const Xbyak::Xmm defaults = ctx.reg_alloc.UseXmm(args[0]);
-    const Xbyak::Xmm indicies = ctx.reg_alloc.UseXmm(args[2]);
-    const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
-    ctx.reg_alloc.EndOfAllocScope();
-    ctx.reg_alloc.HostCall(nullptr);
-
-    code.lea(code.ABI_PARAM1, ptr[rsp + ABI_SHADOW_SPACE]);
-    code.lea(code.ABI_PARAM2, ptr[rsp + ABI_SHADOW_SPACE + 4 * 8]);
-    code.lea(code.ABI_PARAM3, ptr[rsp + ABI_SHADOW_SPACE + 5 * 8]);
-    code.mov(code.ABI_PARAM4.cvt32(), table_size);
-    code.movq(qword[code.ABI_PARAM2], defaults);
-    code.movq(qword[code.ABI_PARAM3], indicies);
-
-    code.CallLambda(
-        [](const HalfVectorArray<u8>* table, HalfVectorArray<u8>& result, const HalfVectorArray<u8>& indicies, size_t table_size) {
-            for (size_t i = 0; i < result.size(); ++i) {
-                const size_t index = indicies[i] / table[0].size();
-                const size_t elem = indicies[i] % table[0].size();
-                if (index < table_size) {
-                    result[i] = table[index][elem];
-                }
-            }
-        }
-    );
-
-    code.movq(result, qword[rsp + ABI_SHADOW_SPACE + 4 * 8]);
-    code.add(rsp, stack_space + ABI_SHADOW_SPACE);
-
-    ctx.reg_alloc.DefineValue(inst, result);
-}
-
-void EmitX64::EmitVectorTableLookup128(EmitContext& ctx, IR::Inst* inst) {
+void EmitX64::EmitVectorTableLookup(EmitContext& ctx, IR::Inst* inst) {
     ASSERT(inst->GetArg(1).GetInst()->GetOpcode() == IR::Opcode::VectorTable);
 
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
@@ -4207,7 +3944,7 @@ void EmitX64::EmitVectorTableLookup128(EmitContext& ctx, IR::Inst* inst) {
 
     // TODO: AVX512VL implementation when available (VPERMB / VPERMI2B / VPERMT2B)
 
-    if (code.HasSSSE3() && is_defaults_zero && table_size == 1) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSSE3) && is_defaults_zero && table_size == 1) {
         const Xbyak::Xmm indicies = ctx.reg_alloc.UseScratchXmm(args[2]);
         const Xbyak::Xmm xmm_table0 = ctx.reg_alloc.UseScratchXmm(table[0]);
 
@@ -4218,12 +3955,12 @@ void EmitX64::EmitVectorTableLookup128(EmitContext& ctx, IR::Inst* inst) {
         return;
     }
 
-    if (code.HasSSE41() && table_size == 1) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41) && table_size == 1) {
         const Xbyak::Xmm indicies = ctx.reg_alloc.UseXmm(args[2]);
         const Xbyak::Xmm defaults = ctx.reg_alloc.UseXmm(args[0]);
         const Xbyak::Xmm xmm_table0 = ctx.reg_alloc.UseScratchXmm(table[0]);
 
-        if (code.HasAVX()) {
+        if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
             code.vpaddusb(xmm0, indicies, code.MConst(xword, 0x7070707070707070, 0x7070707070707070));
         } else {
             code.movaps(xmm0, indicies);
@@ -4236,12 +3973,12 @@ void EmitX64::EmitVectorTableLookup128(EmitContext& ctx, IR::Inst* inst) {
         return;
     }
 
-    if (code.HasSSE41() && is_defaults_zero && table_size == 2) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41) && is_defaults_zero && table_size == 2) {
         const Xbyak::Xmm indicies = ctx.reg_alloc.UseScratchXmm(args[2]);
         const Xbyak::Xmm xmm_table0 = ctx.reg_alloc.UseScratchXmm(table[0]);
         const Xbyak::Xmm xmm_table1 = ctx.reg_alloc.UseScratchXmm(table[1]);
 
-        if (code.HasAVX()) {
+        if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
             code.vpaddusb(xmm0, indicies, code.MConst(xword, 0x7070707070707070, 0x7070707070707070));
         } else {
             code.movaps(xmm0, indicies);
@@ -4256,7 +3993,7 @@ void EmitX64::EmitVectorTableLookup128(EmitContext& ctx, IR::Inst* inst) {
         return;
     }
 
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         const Xbyak::Xmm indicies = ctx.reg_alloc.UseXmm(args[2]);
         const Xbyak::Xmm result = ctx.reg_alloc.UseScratchXmm(args[0]);
         const Xbyak::Xmm masked = ctx.reg_alloc.ScratchXmm();
@@ -4272,7 +4009,7 @@ void EmitX64::EmitVectorTableLookup128(EmitContext& ctx, IR::Inst* inst) {
             if (table_index == 0) {
                 code.pxor(xmm0, xmm0);
                 code.pcmpeqb(xmm0, masked);
-            } else if (code.HasAVX()) {
+            } else if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
                 code.vpcmpeqb(xmm0, masked, code.MConst(xword, table_index, table_index));
             } else {
                 code.movaps(xmm0, code.MConst(xword, table_index, table_index));
@@ -4326,69 +4063,6 @@ void EmitX64::EmitVectorTableLookup128(EmitContext& ctx, IR::Inst* inst) {
     ctx.reg_alloc.DefineValue(inst, result);
 }
 
-void EmitX64::EmitVectorTranspose8(EmitContext& ctx, IR::Inst* inst) {
-    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-
-    const Xbyak::Xmm lower = ctx.reg_alloc.UseScratchXmm(args[0]);
-    const Xbyak::Xmm upper = ctx.reg_alloc.UseScratchXmm(args[1]);
-    const bool part = args[2].GetImmediateU1();
-
-    if (!part) {
-        code.pand(lower, code.MConst(xword, 0x00FF00FF00FF00FF, 0x00FF00FF00FF00FF));
-        code.psllw(upper, 8);
-    } else {
-        code.psrlw(lower, 8);
-        code.pand(upper, code.MConst(xword, 0xFF00FF00FF00FF00, 0xFF00FF00FF00FF00));
-    }
-    code.por(lower, upper);
-
-    ctx.reg_alloc.DefineValue(inst, lower);
-}
-
-void EmitX64::EmitVectorTranspose16(EmitContext& ctx, IR::Inst* inst) {
-    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-
-    const Xbyak::Xmm lower = ctx.reg_alloc.UseScratchXmm(args[0]);
-    const Xbyak::Xmm upper = ctx.reg_alloc.UseScratchXmm(args[1]);
-    const bool part = args[2].GetImmediateU1();
-
-    if (!part) {
-        code.pand(lower, code.MConst(xword, 0x0000FFFF0000FFFF, 0x0000FFFF0000FFFF));
-        code.pslld(upper, 16);
-    } else {
-        code.psrld(lower, 16);
-        code.pand(upper, code.MConst(xword, 0xFFFF0000FFFF0000, 0xFFFF0000FFFF0000));
-    }
-    code.por(lower, upper);
-
-    ctx.reg_alloc.DefineValue(inst, lower);
-}
-
-void EmitX64::EmitVectorTranspose32(EmitContext& ctx, IR::Inst* inst) {
-    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-
-    const Xbyak::Xmm lower = ctx.reg_alloc.UseScratchXmm(args[0]);
-    const Xbyak::Xmm upper = ctx.reg_alloc.UseXmm(args[1]);
-    const bool part = args[2].GetImmediateU1();
-
-    code.shufps(lower, upper, !part ? 0b10001000 : 0b11011101);
-    code.pshufd(lower, lower, 0b11011000);
-
-    ctx.reg_alloc.DefineValue(inst, lower);
-}
-
-void EmitX64::EmitVectorTranspose64(EmitContext& ctx, IR::Inst* inst) {
-    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-
-    const Xbyak::Xmm lower = ctx.reg_alloc.UseScratchXmm(args[0]);
-    const Xbyak::Xmm upper = ctx.reg_alloc.UseXmm(args[1]);
-    const bool part = args[2].GetImmediateU1();
-
-    code.shufpd(lower, upper, !part ? 0b00 : 0b11);
-
-    ctx.reg_alloc.DefineValue(inst, lower);
-}
-
 static void EmitVectorUnsignedAbsoluteDifference(size_t esize, EmitContext& ctx, IR::Inst* inst, BlockOfCode& code) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
@@ -4416,7 +4090,7 @@ static void EmitVectorUnsignedAbsoluteDifference(size_t esize, EmitContext& ctx,
         break;
     }
     case 32:
-        if (code.HasSSE41()) {
+        if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
             const Xbyak::Xmm x = ctx.reg_alloc.UseScratchXmm(args[0]);
             const Xbyak::Xmm y = ctx.reg_alloc.UseXmm(args[1]);
 
@@ -4466,7 +4140,7 @@ void EmitX64::EmitVectorUnsignedMultiply16(EmitContext& ctx, IR::Inst* inst) {
 
     if (upper_inst) {
         const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
-        if (code.HasAVX()) {
+        if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
             code.vpmulhuw(result, x, y);
         } else {
             code.movdqa(result, x);
@@ -4479,7 +4153,7 @@ void EmitX64::EmitVectorUnsignedMultiply16(EmitContext& ctx, IR::Inst* inst) {
 
     if (lower_inst) {
         const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
-        if (code.HasAVX()) {
+        if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
             code.vpmullw(result, x, y);
         } else {
             code.movdqa(result, x);
@@ -4496,7 +4170,7 @@ void EmitX64::EmitVectorUnsignedMultiply32(EmitContext& ctx, IR::Inst* inst) {
 
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
-    if (lower_inst && !upper_inst && code.HasAVX()) {
+    if (lower_inst && !upper_inst && code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
         const Xbyak::Xmm x = ctx.reg_alloc.UseXmm(args[0]);
         const Xbyak::Xmm y = ctx.reg_alloc.UseXmm(args[1]);
         const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
@@ -4508,7 +4182,7 @@ void EmitX64::EmitVectorUnsignedMultiply32(EmitContext& ctx, IR::Inst* inst) {
         return;
     }
 
-    if (code.HasAVX()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
         const Xbyak::Xmm x = ctx.reg_alloc.UseScratchXmm(args[0]);
         const Xbyak::Xmm y = ctx.reg_alloc.UseScratchXmm(args[1]);
 
@@ -4757,7 +4431,7 @@ void EmitX64::EmitVectorUnsignedSaturatedShiftLeft64(EmitContext& ctx, IR::Inst*
 void EmitX64::EmitVectorZeroExtend8(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const Xbyak::Xmm a = ctx.reg_alloc.UseScratchXmm(args[0]);
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         code.pmovzxbw(a, a);
     } else {
         const Xbyak::Xmm zeros = ctx.reg_alloc.ScratchXmm();
@@ -4770,7 +4444,7 @@ void EmitX64::EmitVectorZeroExtend8(EmitContext& ctx, IR::Inst* inst) {
 void EmitX64::EmitVectorZeroExtend16(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const Xbyak::Xmm a = ctx.reg_alloc.UseScratchXmm(args[0]);
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         code.pmovzxwd(a, a);
     } else {
         const Xbyak::Xmm zeros = ctx.reg_alloc.ScratchXmm();
@@ -4783,7 +4457,7 @@ void EmitX64::EmitVectorZeroExtend16(EmitContext& ctx, IR::Inst* inst) {
 void EmitX64::EmitVectorZeroExtend32(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const Xbyak::Xmm a = ctx.reg_alloc.UseScratchXmm(args[0]);
-    if (code.HasSSE41()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41)) {
         code.pmovzxdq(a, a);
     } else {
         const Xbyak::Xmm zeros = ctx.reg_alloc.ScratchXmm();

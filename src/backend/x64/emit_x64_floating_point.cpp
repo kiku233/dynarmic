@@ -50,10 +50,6 @@ constexpr u64 f64_nan = 0x7ff8000000000000u;
 constexpr u64 f64_non_sign_mask = 0x7fffffffffffffffu;
 constexpr u64 f64_smallest_normal = 0x0010000000000000u;
 
-constexpr u64 f64_min_s16 = 0xc0e0000000000000u; // -32768 as a double
-constexpr u64 f64_max_s16 = 0x40dfffc000000000u; // 32767 as a double
-constexpr u64 f64_min_u16 = 0x0000000000000000u; // 0 as a double
-constexpr u64 f64_max_u16 = 0x40efffe000000000u; // 65535 as a double
 constexpr u64 f64_max_s32 = 0x41dfffffffc00000u; // 2147483647 as a double
 constexpr u64 f64_min_u32 = 0x0000000000000000u; // 0 as a double
 constexpr u64 f64_max_u32 = 0x41efffffffe00000u; // 4294967295 as a double
@@ -97,7 +93,7 @@ void DenormalsAreZero(BlockOfCode& code, EmitContext& ctx, std::initializer_list
             code.andps(xmm0, xmm);
             if constexpr (fsize == 32) {
                 code.pcmpgtd(xmm0, code.MConst(xword, f32_smallest_normal - 1));
-            } else if (code.HasSSE42()) {
+            } else if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE42)) {
                 code.pcmpgtq(xmm0, code.MConst(xword, f64_smallest_normal - 1));
             } else {
                 code.pcmpgtd(xmm0, code.MConst(xword, f64_smallest_normal - 1));
@@ -118,7 +114,7 @@ void ZeroIfNaN(BlockOfCode& code, Xbyak::Xmm xmm_value, Xbyak::Xmm xmm_scratch) 
 
 template<size_t fsize>
 void ForceToDefaultNaN(BlockOfCode& code, Xbyak::Xmm result) {
-    if (code.HasAVX()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
         FCODE(vcmpunords)(xmm0, result, result);
         FCODE(blendvp)(result, code.MConst(xword, fsize == 32 ? f32_nan : f64_nan));
     } else {
@@ -206,7 +202,7 @@ void EmitPostProcessNaNs(BlockOfCode& code, Xbyak::Xmm result, Xbyak::Xmm op1, X
     // op1 == QNaN && op2 == QNaN is the most common case. With this method
     // that case would only require one branch.
 
-    if (code.HasAVX()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
         code.vxorps(xmm0, op1, op2);
     } else {
         code.movaps(xmm0, op1);
@@ -241,7 +237,7 @@ void EmitPostProcessNaNs(BlockOfCode& code, Xbyak::Xmm result, Xbyak::Xmm op1, X
     code.jna(end, code.T_NEAR);
 
     // Silence the SNaN as required by spec.
-    if (code.HasAVX()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
         code.vorps(result, op2, code.MConst(xword, mantissa_msb));
     } else {
         code.movaps(result, op2);
@@ -258,7 +254,7 @@ void FPTwoOp(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, Function fn) {
 
     Xbyak::Xmm result = ctx.reg_alloc.UseScratchXmm(args[0]);
 
-    if (!ctx.FPCR().DN()) {
+    if (ctx.AccurateNaN() && !ctx.FPCR().DN()) {
         end = ProcessNaN<fsize>(code, result);
     }
     if constexpr (std::is_member_function_pointer_v<Function>) {
@@ -268,7 +264,7 @@ void FPTwoOp(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, Function fn) {
     }
     if (ctx.FPCR().DN()) {
         ForceToDefaultNaN<fsize>(code, result);
-    } else {
+    } else if (ctx.AccurateNaN()) {
         PostProcessNaN<fsize>(code, result, ctx.reg_alloc.ScratchXmm());
     }
     code.L(end);
@@ -282,7 +278,7 @@ void FPThreeOp(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, Function fn)
 
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
-    if (ctx.FPCR().DN()) {
+    if (ctx.FPCR().DN() || !ctx.AccurateNaN()) {
         const Xbyak::Xmm result = ctx.reg_alloc.UseScratchXmm(args[0]);
         const Xbyak::Xmm operand = ctx.reg_alloc.UseScratchXmm(args[1]);
 
@@ -292,7 +288,9 @@ void FPThreeOp(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, Function fn)
             fn(result, operand);
         }
 
-        ForceToDefaultNaN<fsize>(code, result);
+        if (ctx.AccurateNaN()) {
+            ForceToDefaultNaN<fsize>(code, result);
+        }
 
         ctx.reg_alloc.DefineValue(inst, result);
         return;
@@ -435,7 +433,7 @@ static void EmitFPMinMax(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
     code.jmp(end);
 
     code.L(nan);
-    if (ctx.FPCR().DN()) {
+    if (ctx.FPCR().DN() || !ctx.AccurateNaN()) {
         code.movaps(result, code.MConst(xword, fsize == 32 ? f32_nan : f64_nan));
         code.jmp(end);
     } else {
@@ -591,7 +589,7 @@ static void EmitFPMulAdd(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
     using FPT = mp::unsigned_integer_of_size<fsize>;
 
     if constexpr (fsize != 16) {
-        if (code.HasFMA()) {
+        if (code.DoesCpuSupport(Xbyak::util::Cpu::tFMA)) {
             auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
             Xbyak::Label end, fallback;
@@ -675,7 +673,7 @@ static void EmitFPMulX(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
 
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
-    const bool do_default_nan = ctx.FPCR().DN();
+    const bool do_default_nan = ctx.FPCR().DN() || !ctx.AccurateNaN();
 
     const Xbyak::Xmm op1 = ctx.reg_alloc.UseXmm(args[0]);
     const Xbyak::Xmm op2 = ctx.reg_alloc.UseXmm(args[1]);
@@ -684,7 +682,7 @@ static void EmitFPMulX(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
 
     Xbyak::Label end, nan, op_are_nans;
 
-    if (code.HasAVX()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
         FCODE(vmuls)(result, op1, op2);
     } else {
         code.movaps(result, op1);
@@ -698,7 +696,7 @@ static void EmitFPMulX(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
     code.L(nan);
     FCODE(ucomis)(op1, op2);
     code.jp(op_are_nans);
-    if (code.HasAVX()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
         code.vxorps(result, op1, op2);
     } else {
         code.movaps(result, op1);
@@ -774,7 +772,7 @@ static void EmitFPRecipStepFused(BlockOfCode& code, EmitContext& ctx, IR::Inst* 
     using FPT = mp::unsigned_integer_of_size<fsize>;
 
     if constexpr (fsize != 16) {
-        if (code.HasFMA()) {
+        if (code.DoesCpuSupport(Xbyak::util::Cpu::tFMA)) {
             auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
             Xbyak::Label end, fallback;
@@ -835,7 +833,7 @@ static void EmitFPRound(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, siz
     const bool exact = inst->GetArg(2).GetU1();
     const auto round_imm = ConvertRoundingModeToX64Immediate(rounding_mode);
 
-    if (fsize != 16 && code.HasSSE41() && round_imm && !exact) {
+    if (fsize != 16 && code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41) && round_imm && !exact) {
         if (fsize == 64) {
             FPTwoOp<64>(code, ctx, inst, [&](Xbyak::Xmm result) {
                 code.roundsd(result, result, *round_imm);
@@ -926,7 +924,7 @@ static void EmitFPRSqrtStepFused(BlockOfCode& code, EmitContext& ctx, IR::Inst* 
     using FPT = mp::unsigned_integer_of_size<fsize>;
 
     if constexpr (fsize != 16) {
-        if (code.HasFMA() && code.HasAVX()) {
+        if (code.DoesCpuSupport(Xbyak::util::Cpu::tFMA) && code.DoesCpuSupport(Xbyak::util::Cpu::tAVX)) {
             auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
             Xbyak::Label end, fallback;
@@ -1073,7 +1071,7 @@ void EmitX64::EmitFPHalfToDouble(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const auto rounding_mode = static_cast<FP::RoundingMode>(args[1].GetImmediateU8());
 
-    if (code.HasF16C() && !ctx.FPCR().AHP() && !ctx.FPCR().FZ16()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tF16C) && !ctx.FPCR().AHP() && !ctx.FPCR().FZ16()) {
         const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
         const Xbyak::Xmm value = ctx.reg_alloc.UseXmm(args[0]);
 
@@ -1099,7 +1097,7 @@ void EmitX64::EmitFPHalfToSingle(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const auto rounding_mode = static_cast<FP::RoundingMode>(args[1].GetImmediateU8());
 
-    if (code.HasF16C() && !ctx.FPCR().AHP() && !ctx.FPCR().FZ16()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tF16C) && !ctx.FPCR().AHP() && !ctx.FPCR().FZ16()) {
         const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
         const Xbyak::Xmm value = ctx.reg_alloc.UseXmm(args[0]);
 
@@ -1146,7 +1144,7 @@ void EmitX64::EmitFPSingleToHalf(EmitContext& ctx, IR::Inst* inst) {
     const auto rounding_mode = static_cast<FP::RoundingMode>(args[1].GetImmediateU8());
     const auto round_imm = ConvertRoundingModeToX64Immediate(rounding_mode);
 
-    if (code.HasF16C() && !ctx.FPCR().AHP() && !ctx.FPCR().FZ16()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tF16C) && !ctx.FPCR().AHP() && !ctx.FPCR().FZ16()) {
         const Xbyak::Xmm result = ctx.reg_alloc.UseScratchXmm(args[0]);
 
         if (ctx.FPCR().DN()) {
@@ -1211,7 +1209,7 @@ static void EmitFPToFixed(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
     if constexpr (fsize != 16) {
         const auto round_imm = ConvertRoundingModeToX64Immediate(rounding_mode);
 
-        if (code.HasSSE41() && round_imm){
+        if (code.DoesCpuSupport(Xbyak::util::Cpu::tSSE41) && round_imm){
             const Xbyak::Xmm src = ctx.reg_alloc.UseScratchXmm(args[0]);
             const Xbyak::Xmm scratch = ctx.reg_alloc.ScratchXmm();
             const Xbyak::Reg64 result = ctx.reg_alloc.ScratchGpr().cvt64();
@@ -1264,7 +1262,7 @@ static void EmitFPToFixed(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
                 code.mov(result, unsigned_ ? 0xFFFF'FFFF'FFFF'FFFF : 0x7FFF'FFFF'FFFF'FFFF);
                 code.jmp(end, code.T_NEAR);
                 code.SwitchToNearCode();
-            } else if constexpr (isize == 32) {
+            } else {
                 code.minsd(src, code.MConst(xword, unsigned_ ? f64_max_u32 : f64_max_s32));
                 if (unsigned_) {
                     code.maxsd(src, code.MConst(xword, f64_min_u32));
@@ -1272,10 +1270,6 @@ static void EmitFPToFixed(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
                 } else {
                     code.cvttsd2si(result.cvt32(), src);
                 }
-            } else {
-                code.minsd(src, code.MConst(xword, unsigned_ ? f64_max_u16 : f64_max_s16));
-                code.maxsd(src, code.MConst(xword, unsigned_ ? f64_min_u16 : f64_min_s16));
-                code.cvttsd2si(result, src); // 64 bit gpr
             }
 
             ctx.reg_alloc.DefineValue(inst, result);
@@ -1318,20 +1312,12 @@ static void EmitFPToFixed(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
     code.CallFunction(lut.at(std::make_tuple(fbits, rounding_mode)));
 }
 
-void EmitX64::EmitFPDoubleToFixedS16(EmitContext& ctx, IR::Inst* inst) {
-    EmitFPToFixed<64, false, 16>(code, ctx, inst);
-}
-
 void EmitX64::EmitFPDoubleToFixedS32(EmitContext& ctx, IR::Inst* inst) {
     EmitFPToFixed<64, false, 32>(code, ctx, inst);
 }
 
 void EmitX64::EmitFPDoubleToFixedS64(EmitContext& ctx, IR::Inst* inst) {
     EmitFPToFixed<64, false, 64>(code, ctx, inst);
-}
-
-void EmitX64::EmitFPDoubleToFixedU16(EmitContext& ctx, IR::Inst* inst) {
-    EmitFPToFixed<64, true, 16>(code, ctx, inst);
 }
 
 void EmitX64::EmitFPDoubleToFixedU32(EmitContext& ctx, IR::Inst* inst) {
@@ -1342,20 +1328,12 @@ void EmitX64::EmitFPDoubleToFixedU64(EmitContext& ctx, IR::Inst* inst) {
     EmitFPToFixed<64, true, 64>(code, ctx, inst);
 }
 
-void EmitX64::EmitFPHalfToFixedS16(EmitContext& ctx, IR::Inst* inst) {
-    EmitFPToFixed<16, false, 16>(code, ctx, inst);
-}
-
 void EmitX64::EmitFPHalfToFixedS32(EmitContext& ctx, IR::Inst* inst) {
     EmitFPToFixed<16, false, 32>(code, ctx, inst);
 }
 
 void EmitX64::EmitFPHalfToFixedS64(EmitContext& ctx, IR::Inst* inst) {
     EmitFPToFixed<16, false, 64>(code, ctx, inst);
-}
-
-void EmitX64::EmitFPHalfToFixedU16(EmitContext& ctx, IR::Inst* inst) {
-    EmitFPToFixed<16, true, 16>(code, ctx, inst);
 }
 
 void EmitX64::EmitFPHalfToFixedU32(EmitContext& ctx, IR::Inst* inst) {
@@ -1366,20 +1344,12 @@ void EmitX64::EmitFPHalfToFixedU64(EmitContext& ctx, IR::Inst* inst) {
     EmitFPToFixed<16, true, 64>(code, ctx, inst);
 }
 
-void EmitX64::EmitFPSingleToFixedS16(EmitContext& ctx, IR::Inst* inst) {
-    EmitFPToFixed<32, false, 16>(code, ctx, inst);
-}
-
 void EmitX64::EmitFPSingleToFixedS32(EmitContext& ctx, IR::Inst* inst) {
     EmitFPToFixed<32, false, 32>(code, ctx, inst);
 }
 
 void EmitX64::EmitFPSingleToFixedS64(EmitContext& ctx, IR::Inst* inst) {
     EmitFPToFixed<32, false, 64>(code, ctx, inst);
-}
-
-void EmitX64::EmitFPSingleToFixedU16(EmitContext& ctx, IR::Inst* inst) {
-    EmitFPToFixed<32, true, 16>(code, ctx, inst);
 }
 
 void EmitX64::EmitFPSingleToFixedU32(EmitContext& ctx, IR::Inst* inst) {
@@ -1390,46 +1360,6 @@ void EmitX64::EmitFPSingleToFixedU64(EmitContext& ctx, IR::Inst* inst) {
     EmitFPToFixed<32, true, 64>(code, ctx, inst);
 }
 
-void EmitX64::EmitFPFixedS16ToSingle(EmitContext& ctx, IR::Inst* inst) {
-    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-
-    const Xbyak::Reg16 from = ctx.reg_alloc.UseGpr(args[0]).cvt16();
-    const Xbyak::Reg32 tmp = ctx.reg_alloc.ScratchGpr().cvt32();
-    const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
-    const size_t fbits = args[1].GetImmediateU8();
-    [[maybe_unused]] const FP::RoundingMode rounding_mode = static_cast<FP::RoundingMode>(args[2].GetImmediateU8()); // Not required
-
-    code.movsx(tmp, from);
-    code.cvtsi2ss(result, tmp);
-
-    if (fbits != 0) {
-        const u32 scale_factor = static_cast<u32>((127 - fbits) << 23);
-        code.mulss(result, code.MConst(xword, scale_factor));
-    }
-
-    ctx.reg_alloc.DefineValue(inst, result);
-}
-
-void EmitX64::EmitFPFixedU16ToSingle(EmitContext& ctx, IR::Inst* inst) {
-    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-
-    const Xbyak::Reg16 from = ctx.reg_alloc.UseGpr(args[0]).cvt16();
-    const Xbyak::Reg32 tmp = ctx.reg_alloc.ScratchGpr().cvt32();
-    const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
-    const size_t fbits = args[1].GetImmediateU8();
-    [[maybe_unused]] const FP::RoundingMode rounding_mode = static_cast<FP::RoundingMode>(args[2].GetImmediateU8()); // Not required
-
-    code.movzx(tmp, from);
-    code.cvtsi2ss(result, tmp);
-
-    if (fbits != 0) {
-        const u32 scale_factor = static_cast<u32>((127 - fbits) << 23);
-        code.mulss(result, code.MConst(xword, scale_factor));
-    }
-
-    ctx.reg_alloc.DefineValue(inst, result);
-}
-
 void EmitX64::EmitFPFixedS32ToSingle(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
@@ -1437,15 +1367,9 @@ void EmitX64::EmitFPFixedS32ToSingle(EmitContext& ctx, IR::Inst* inst) {
     const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
     const size_t fbits = args[1].GetImmediateU8();
     const FP::RoundingMode rounding_mode = static_cast<FP::RoundingMode>(args[2].GetImmediateU8());
+    ASSERT(rounding_mode == ctx.FPCR().RMode());
 
-    if (rounding_mode == ctx.FPCR().RMode()) {
-        code.cvtsi2ss(result, from);
-    } else {
-        ASSERT(rounding_mode == FP::RoundingMode::ToNearest_TieEven);
-        code.EnterStandardASIMD();
-        code.cvtsi2ss(result, from);
-        code.LeaveStandardASIMD();
-    }
+    code.cvtsi2ss(result, from);
 
     if (fbits != 0) {
         const u32 scale_factor = static_cast<u32>((127 - fbits) << 23);
@@ -1461,71 +1385,21 @@ void EmitX64::EmitFPFixedU32ToSingle(EmitContext& ctx, IR::Inst* inst) {
     const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
     const size_t fbits = args[1].GetImmediateU8();
     const FP::RoundingMode rounding_mode = static_cast<FP::RoundingMode>(args[2].GetImmediateU8());
+    ASSERT(rounding_mode == ctx.FPCR().RMode());
 
-    const auto op = [&]{
-        if (code.HasAVX512_Skylake()) {
-            const Xbyak::Reg64 from = ctx.reg_alloc.UseGpr(args[0]);
-            code.vcvtusi2ss(result, result, from.cvt32());
-        } else {
-            // We are using a 64-bit GPR register to ensure we don't end up treating the input as signed
-            const Xbyak::Reg64 from = ctx.reg_alloc.UseScratchGpr(args[0]);
-            code.mov(from.cvt32(), from.cvt32()); // TODO: Verify if this is necessary
-            code.cvtsi2ss(result, from);
-        }
-    };
-
-    if (rounding_mode == ctx.FPCR().RMode()) {
-        op();
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512F)) {
+        const Xbyak::Reg64 from = ctx.reg_alloc.UseGpr(args[0]);
+        code.vcvtusi2ss(result, result, from.cvt32());
     } else {
-        ASSERT(rounding_mode == FP::RoundingMode::ToNearest_TieEven);
-        code.EnterStandardASIMD();
-        op();
-        code.LeaveStandardASIMD();
+        // We are using a 64-bit GPR register to ensure we don't end up treating the input as signed
+        const Xbyak::Reg64 from = ctx.reg_alloc.UseScratchGpr(args[0]);
+        code.mov(from.cvt32(), from.cvt32()); // TODO: Verify if this is necessary
+        code.cvtsi2ss(result, from);
     }
 
     if (fbits != 0) {
         const u32 scale_factor = static_cast<u32>((127 - fbits) << 23);
         code.mulss(result, code.MConst(xword, scale_factor));
-    }
-
-    ctx.reg_alloc.DefineValue(inst, result);
-}
-
-void EmitX64::EmitFPFixedS16ToDouble(EmitContext& ctx, IR::Inst* inst) {
-    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-
-    const Xbyak::Reg16 from = ctx.reg_alloc.UseGpr(args[0]).cvt16();
-    const Xbyak::Reg32 tmp = ctx.reg_alloc.ScratchGpr().cvt32();
-    const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
-    const size_t fbits = args[1].GetImmediateU8();
-    [[maybe_unused]] const FP::RoundingMode rounding_mode = static_cast<FP::RoundingMode>(args[2].GetImmediateU8()); // Not required
-
-    code.movsx(tmp, from);
-    code.cvtsi2sd(result, tmp);
-
-    if (fbits != 0) {
-        const u64 scale_factor = static_cast<u64>((1023 - fbits) << 52);
-        code.mulsd(result, code.MConst(xword, scale_factor));
-    }
-
-    ctx.reg_alloc.DefineValue(inst, result);
-}
-
-void EmitX64::EmitFPFixedU16ToDouble(EmitContext& ctx, IR::Inst* inst) {
-    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-
-    const Xbyak::Reg16 from = ctx.reg_alloc.UseGpr(args[0]).cvt16();
-    const Xbyak::Reg32 tmp = ctx.reg_alloc.ScratchGpr().cvt32();
-    const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
-    const size_t fbits = args[1].GetImmediateU8();
-    [[maybe_unused]] const FP::RoundingMode rounding_mode = static_cast<FP::RoundingMode>(args[2].GetImmediateU8()); // Not required
-
-    code.movzx(tmp, from);
-    code.cvtsi2sd(result, tmp);
-
-    if (fbits != 0) {
-        const u64 scale_factor = static_cast<u64>((1023 - fbits) << 52);
-        code.mulsd(result, code.MConst(xword, scale_factor));
     }
 
     ctx.reg_alloc.DefineValue(inst, result);
@@ -1537,7 +1411,8 @@ void EmitX64::EmitFPFixedS32ToDouble(EmitContext& ctx, IR::Inst* inst) {
     const Xbyak::Reg32 from = ctx.reg_alloc.UseGpr(args[0]).cvt32();
     const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
     const size_t fbits = args[1].GetImmediateU8();
-    [[maybe_unused]] const FP::RoundingMode rounding_mode = static_cast<FP::RoundingMode>(args[2].GetImmediateU8()); // Not required
+    const FP::RoundingMode rounding_mode = static_cast<FP::RoundingMode>(args[2].GetImmediateU8());
+    ASSERT(rounding_mode == ctx.FPCR().RMode());
 
     code.cvtsi2sd(result, from);
 
@@ -1547,31 +1422,6 @@ void EmitX64::EmitFPFixedS32ToDouble(EmitContext& ctx, IR::Inst* inst) {
     }
 
     ctx.reg_alloc.DefineValue(inst, result);
-}
-
-void EmitX64::EmitFPFixedU32ToDouble(EmitContext& ctx, IR::Inst* inst) {
-    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-
-    const Xbyak::Xmm to = ctx.reg_alloc.ScratchXmm();
-    const size_t fbits = args[1].GetImmediateU8();
-    [[maybe_unused]] const FP::RoundingMode rounding_mode = static_cast<FP::RoundingMode>(args[2].GetImmediateU8()); // Not required
-
-    if (code.HasAVX512_Skylake()) {
-        const Xbyak::Reg64 from = ctx.reg_alloc.UseGpr(args[0]);
-        code.vcvtusi2sd(to, to, from.cvt32());
-    } else {
-        // We are using a 64-bit GPR register to ensure we don't end up treating the input as signed
-        const Xbyak::Reg64 from = ctx.reg_alloc.UseScratchGpr(args[0]);
-        code.mov(from.cvt32(), from.cvt32()); // TODO: Verify if this is necessary
-        code.cvtsi2sd(to, from);
-    }
-
-    if (fbits != 0) {
-        const u64 scale_factor = static_cast<u64>((1023 - fbits) << 52);
-        code.mulsd(to, code.MConst(xword, scale_factor));
-    }
-
-    ctx.reg_alloc.DefineValue(inst, to);
 }
 
 void EmitX64::EmitFPFixedS64ToDouble(EmitContext& ctx, IR::Inst* inst) {
@@ -1612,6 +1462,32 @@ void EmitX64::EmitFPFixedS64ToSingle(EmitContext& ctx, IR::Inst* inst) {
     ctx.reg_alloc.DefineValue(inst, result);
 }
 
+void EmitX64::EmitFPFixedU32ToDouble(EmitContext& ctx, IR::Inst* inst) {
+    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+
+    const Xbyak::Xmm to = ctx.reg_alloc.ScratchXmm();
+    const size_t fbits = args[1].GetImmediateU8();
+    const FP::RoundingMode rounding_mode = static_cast<FP::RoundingMode>(args[2].GetImmediateU8());
+    ASSERT(rounding_mode == ctx.FPCR().RMode());
+
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512F)) {
+        const Xbyak::Reg64 from = ctx.reg_alloc.UseGpr(args[0]);
+        code.vcvtusi2sd(to, to, from.cvt32());
+    } else {
+        // We are using a 64-bit GPR register to ensure we don't end up treating the input as signed
+        const Xbyak::Reg64 from = ctx.reg_alloc.UseScratchGpr(args[0]);
+        code.mov(from.cvt32(), from.cvt32()); // TODO: Verify if this is necessary
+        code.cvtsi2sd(to, from);
+    }
+
+    if (fbits != 0) {
+        const u64 scale_factor = static_cast<u64>((1023 - fbits) << 52);
+        code.mulsd(to, code.MConst(xword, scale_factor));
+    }
+
+    ctx.reg_alloc.DefineValue(inst, to);
+}
+
 void EmitX64::EmitFPFixedU64ToDouble(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
@@ -1621,7 +1497,7 @@ void EmitX64::EmitFPFixedU64ToDouble(EmitContext& ctx, IR::Inst* inst) {
     const FP::RoundingMode rounding_mode = static_cast<FP::RoundingMode>(args[2].GetImmediateU8());
     ASSERT(rounding_mode == ctx.FPCR().RMode());
 
-    if (code.HasAVX512_Skylake()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512F)) {
         code.vcvtusi2sd(result, result, from);
     } else {
         const Xbyak::Xmm tmp = ctx.reg_alloc.ScratchXmm();
@@ -1652,7 +1528,7 @@ void EmitX64::EmitFPFixedU64ToSingle(EmitContext& ctx, IR::Inst* inst) {
     const FP::RoundingMode rounding_mode = static_cast<FP::RoundingMode>(args[2].GetImmediateU8());
     ASSERT(rounding_mode == ctx.FPCR().RMode());
 
-    if (code.HasAVX512_Skylake()) {
+    if (code.DoesCpuSupport(Xbyak::util::Cpu::tAVX512F)) {
         const Xbyak::Reg64 from = ctx.reg_alloc.UseGpr(args[0]);
         code.vcvtusi2ss(result, result, from);
     } else {

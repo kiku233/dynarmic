@@ -44,8 +44,6 @@ public:
     bool IsSharedMemoryWrite() const;
     /// Determines whether or not this instruction performs a shared memory read or write.
     bool IsSharedMemoryReadOrWrite() const;
-    /// Determines whether or not this instruction performs an atomic memory read.
-    bool IsExclusiveMemoryRead() const;
     /// Determines whether or not this instruction performs an atomic memory write.
     bool IsExclusiveMemoryWrite() const;
 

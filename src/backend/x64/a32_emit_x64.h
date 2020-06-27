@@ -9,8 +9,7 @@
 #include <optional>
 #include <set>
 #include <tuple>
-
-#include <tsl/robin_map.h>
+#include <unordered_map>
 
 #include <dynarmic/A32/a32.h>
 #include <dynarmic/A32/config.h>
@@ -26,18 +25,15 @@ namespace Dynarmic::Backend::X64 {
 class RegAlloc;
 
 struct A32EmitContext final : public EmitContext {
-    A32EmitContext(const A32::UserConfig& conf, RegAlloc& reg_alloc, IR::Block& block);
-
+    A32EmitContext(RegAlloc& reg_alloc, IR::Block& block);
     A32::LocationDescriptor Location() const;
     bool IsSingleStep() const;
-    FP::FPCR FPCR(bool fpcr_controlled = true) const override;
-
-    const A32::UserConfig& conf;
+    FP::FPCR FPCR() const override;
 };
 
 class A32EmitX64 final : public EmitX64 {
 public:
-    A32EmitX64(BlockOfCode& code, A32::UserConfig conf, A32::Jit* jit_interface);
+    A32EmitX64(BlockOfCode& code, A32::UserConfig config, A32::Jit* jit_interface);
     ~A32EmitX64() override;
 
     /**
@@ -50,12 +46,8 @@ public:
 
     void InvalidateCacheRanges(const boost::icl::interval_set<u32>& ranges);
 
-    void ChangeProcessorID(size_t value) {
-        conf.processor_id = value;
-    }
-
 protected:
-    A32::UserConfig conf;
+    const A32::UserConfig config;
     A32::Jit* jit_interface;
     BlockRangeInformation<u32> block_ranges;
 
@@ -99,20 +91,16 @@ protected:
         u64 callback;
         DoNotFastmemMarker marker;
     };
-    tsl::robin_map<u64, FastmemPatchInfo> fastmem_patch_info;
+    std::unordered_map<u64, FastmemPatchInfo> fastmem_patch_info;
     std::set<DoNotFastmemMarker> do_not_fastmem;
     std::optional<DoNotFastmemMarker> ShouldFastmem(A32EmitContext& ctx, IR::Inst* inst) const;
     FakeCall FastmemCallback(u64 rip);
 
     // Memory access helpers
-    template<std::size_t bitsize, auto callback>
+    template<std::size_t bitsize>
     void ReadMemory(A32EmitContext& ctx, IR::Inst* inst);
-    template<std::size_t bitsize, auto callback>
+    template<std::size_t bitsize>
     void WriteMemory(A32EmitContext& ctx, IR::Inst* inst);
-    template<std::size_t bitsize, auto callback>
-    void ExclusiveReadMemory(A32EmitContext& ctx, IR::Inst* inst);
-    template<std::size_t bitsize, auto callback>
-    void ExclusiveWriteMemory(A32EmitContext& ctx, IR::Inst* inst);
 
     // Terminal instruction emitters
     void EmitSetUpperLocationDescriptor(IR::LocationDescriptor new_location, IR::LocationDescriptor old_location);

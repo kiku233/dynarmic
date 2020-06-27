@@ -4,12 +4,10 @@
  */
 
 #include <iterator>
-
-#include <tsl/robin_set.h>
+#include <unordered_map>
 
 #include "backend/x64/block_of_code.h"
 #include "backend/x64/emit_x64.h"
-#include "backend/x64/nzcv_util.h"
 #include "backend/x64/perf_map.h"
 #include "common/assert.h"
 #include "common/bit_util.h"
@@ -160,22 +158,12 @@ void EmitX64::EmitNZCVFromPackedFlags(EmitContext& ctx, IR::Inst* inst) {
         value |= Common::Bit<28>(args[0].GetImmediateU32()) ? (1 << 0) : 0;
         code.mov(nzcv, value);
         ctx.reg_alloc.DefineValue(inst, nzcv);
-    } else if (code.HasFastBMI2()) {
-        const Xbyak::Reg32 nzcv = ctx.reg_alloc.UseScratchGpr(args[0]).cvt32();
-        const Xbyak::Reg32 tmp = ctx.reg_alloc.ScratchGpr().cvt32();
-
-        code.shr(nzcv, 28);
-        code.mov(tmp, NZCV::x64_mask);
-        code.pdep(nzcv, nzcv, tmp);
-
-        ctx.reg_alloc.DefineValue(inst, nzcv);
     } else {
         const Xbyak::Reg32 nzcv = ctx.reg_alloc.UseScratchGpr(args[0]).cvt32();
-
+        // TODO: Optimize
         code.shr(nzcv, 28);
-        code.imul(nzcv, nzcv, NZCV::to_x64_multiplier);
-        code.and_(nzcv, NZCV::x64_mask);
-
+        code.imul(nzcv, nzcv, 0b00010000'10000001);
+        code.and_(nzcv.cvt8(), 1);
         ctx.reg_alloc.DefineValue(inst, nzcv);
     }
 }
@@ -186,82 +174,115 @@ void EmitX64::EmitAddCycles(size_t cycles) {
 }
 
 Xbyak::Label EmitX64::EmitCond(IR::Cond cond) {
-    Xbyak::Label pass;
+    Xbyak::Label label;
 
-    code.mov(eax, dword[r15 + code.GetJitStateInfo().offsetof_cpsr_nzcv]);
+    const Xbyak::Reg32 cpsr = eax;
+    code.mov(cpsr, dword[r15 + code.GetJitStateInfo().offsetof_cpsr_nzcv]);
 
-    // sahf restores SF, ZF, CF
-    // add al, 0x7F restores OF
+    constexpr size_t n_shift = 31;
+    constexpr size_t z_shift = 30;
+    constexpr size_t c_shift = 29;
+    constexpr size_t v_shift = 28;
+    constexpr u32 n_mask = 1u << n_shift;
+    constexpr u32 z_mask = 1u << z_shift;
+    constexpr u32 c_mask = 1u << c_shift;
+    constexpr u32 v_mask = 1u << v_shift;
 
     switch (cond) {
     case IR::Cond::EQ: //z
-        code.sahf();
-        code.jz(pass);
+        code.test(cpsr, z_mask);
+        code.jnz(label);
         break;
     case IR::Cond::NE: //!z
-        code.sahf();
-        code.jnz(pass);
+        code.test(cpsr, z_mask);
+        code.jz(label);
         break;
     case IR::Cond::CS: //c
-        code.sahf();
-        code.jc(pass);
+        code.test(cpsr, c_mask);
+        code.jnz(label);
         break;
     case IR::Cond::CC: //!c
-        code.sahf();
-        code.jnc(pass);
+        code.test(cpsr, c_mask);
+        code.jz(label);
         break;
     case IR::Cond::MI: //n
-        code.sahf();
-        code.js(pass);
+        code.test(cpsr, n_mask);
+        code.jnz(label);
         break;
     case IR::Cond::PL: //!n
-        code.sahf();
-        code.jns(pass);
+        code.test(cpsr, n_mask);
+        code.jz(label);
         break;
     case IR::Cond::VS: //v
-        code.add(al, 0x7F);
-        code.jo(pass);
+        code.test(cpsr, v_mask);
+        code.jnz(label);
         break;
     case IR::Cond::VC: //!v
-        code.add(al, 0x7F);
-        code.jno(pass);
+        code.test(cpsr, v_mask);
+        code.jz(label);
         break;
-    case IR::Cond::HI: //c & !z
-        code.sahf();
-        code.cmc();
-        code.ja(pass);
+    case IR::Cond::HI: { //c & !z
+        code.and_(cpsr, z_mask | c_mask);
+        code.cmp(cpsr, c_mask);
+        code.je(label);
         break;
-    case IR::Cond::LS: //!c | z
-        code.sahf();
-        code.cmc();
-        code.jna(pass);
+    }
+    case IR::Cond::LS: { //!c | z
+        code.and_(cpsr, z_mask | c_mask);
+        code.cmp(cpsr, c_mask);
+        code.jne(label);
         break;
-    case IR::Cond::GE: // n == v
-        code.add(al, 0x7F);
-        code.sahf();
-        code.jge(pass);
+    }
+    case IR::Cond::GE: { // n == v
+        code.and_(cpsr, n_mask | v_mask);
+        code.jz(label);
+        code.cmp(cpsr, n_mask | v_mask);
+        code.je(label);
         break;
-    case IR::Cond::LT: // n != v
-        code.add(al, 0x7F);
-        code.sahf();
-        code.jl(pass);
+    }
+    case IR::Cond::LT: { // n != v
+        Xbyak::Label fail;
+        code.and_(cpsr, n_mask | v_mask);
+        code.jz(fail);
+        code.cmp(cpsr, n_mask | v_mask);
+        code.jne(label);
+        code.L(fail);
         break;
-    case IR::Cond::GT: // !z & (n == v)
-        code.add(al, 0x7F);
-        code.sahf();
-        code.jg(pass);
+    }
+    case IR::Cond::GT: { // !z & (n == v)
+        const Xbyak::Reg32 tmp1 = ebx;
+        const Xbyak::Reg32 tmp2 = esi;
+        code.mov(tmp1, cpsr);
+        code.mov(tmp2, cpsr);
+        code.shr(tmp1, n_shift);
+        code.shr(tmp2, v_shift);
+        code.shr(cpsr, z_shift);
+        code.xor_(tmp1, tmp2);
+        code.or_(tmp1, cpsr);
+        code.test(tmp1, 1);
+        code.jz(label);
         break;
-    case IR::Cond::LE: // z | (n != v)
-        code.add(al, 0x7F);
-        code.sahf();
-        code.jle(pass);
+    }
+    case IR::Cond::LE: { // z | (n != v)
+        const Xbyak::Reg32 tmp1 = ebx;
+        const Xbyak::Reg32 tmp2 = esi;
+        code.mov(tmp1, cpsr);
+        code.mov(tmp2, cpsr);
+        code.shr(tmp1, n_shift);
+        code.shr(tmp2, v_shift);
+        code.shr(cpsr, z_shift);
+        code.xor_(tmp1, tmp2);
+        code.or_(tmp1, cpsr);
+        code.test(tmp1, 1);
+        code.jnz(label);
         break;
+    }
     default:
         ASSERT_MSG(false, "Unknown cond {}", static_cast<size_t>(cond));
         break;
     }
 
-    return pass;
+    return label;
 }
 
 EmitX64::BlockDescriptor EmitX64::RegisterBlock(const IR::LocationDescriptor& descriptor, CodePtr entrypoint, size_t size) {
@@ -317,7 +338,7 @@ void EmitX64::ClearCache() {
     PerfMapClear();
 }
 
-void EmitX64::InvalidateBasicBlocks(const tsl::robin_set<IR::LocationDescriptor>& locations) {
+void EmitX64::InvalidateBasicBlocks(const std::unordered_set<IR::LocationDescriptor>& locations) {
     code.EnableWriting();
     SCOPE_EXIT { code.DisableWriting(); };
 

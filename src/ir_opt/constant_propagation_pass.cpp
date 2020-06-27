@@ -86,10 +86,6 @@ void FoldAdd(IR::Inst& inst, bool is_32_bit) {
         return;
     }
 
-    if (inst.HasAssociatedPseudoOperation()) {
-        return;
-    }
-
     if (!lhs.IsImmediate() && rhs.IsImmediate()) {
         const IR::Inst* lhs_inst = lhs.GetInstRecursive();
         if (lhs_inst->GetOpcode() == inst.GetOpcode() && lhs_inst->GetArg(1).IsImmediate() && lhs_inst->GetArg(2).IsImmediate()) {
@@ -100,7 +96,7 @@ void FoldAdd(IR::Inst& inst, bool is_32_bit) {
         }
     }
 
-    if (inst.AreAllArgsImmediates()) {
+    if (inst.AreAllArgsImmediates() && !inst.HasAssociatedPseudoOperation()) {
         const u64 result = lhs.GetImmediateAsU64() + rhs.GetImmediateAsU64() + carry.GetU1();
         ReplaceUsesWith(inst, is_32_bit, result);
         return;

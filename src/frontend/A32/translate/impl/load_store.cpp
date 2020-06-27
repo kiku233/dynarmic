@@ -8,43 +8,35 @@
 namespace Dynarmic::A32 {
 
 bool ArmTranslatorVisitor::arm_LDRBT() {
-    // System instructions unimplemented
-    return UndefinedInstruction();
+    ASSERT_FALSE("System instructions unimplemented");
 }
 
 bool ArmTranslatorVisitor::arm_LDRHT() {
-    // System instructions unimplemented
-    return UndefinedInstruction();
+    ASSERT_FALSE("System instructions unimplemented");
 }
 
 bool ArmTranslatorVisitor::arm_LDRSBT() {
-    // System instructions unimplemented
-    return UndefinedInstruction();
+    ASSERT_FALSE("System instructions unimplemented");
 }
 
 bool ArmTranslatorVisitor::arm_LDRSHT() {
-    // System instructions unimplemented
-    return UndefinedInstruction();
+    ASSERT_FALSE("System instructions unimplemented");
 }
 
 bool ArmTranslatorVisitor::arm_LDRT() {
-    // System instructions unimplemented
-    return UndefinedInstruction();
+    ASSERT_FALSE("System instructions unimplemented");
 }
 
 bool ArmTranslatorVisitor::arm_STRBT() {
-    // System instructions unimplemented
-    return UndefinedInstruction();
+    ASSERT_FALSE("System instructions unimplemented");
 }
 
 bool ArmTranslatorVisitor::arm_STRHT() {
-    // System instructions unimplemented
-    return UndefinedInstruction();
+    ASSERT_FALSE("System instructions unimplemented");
 }
 
 bool ArmTranslatorVisitor::arm_STRT() {
-    // System instructions unimplemented
-    return UndefinedInstruction();
+    ASSERT_FALSE("System instructions unimplemented");
 }
 
 static IR::U32 GetAddress(A32::IREmitter& ir, bool P, bool U, bool W, Reg n, IR::U32 offset) {

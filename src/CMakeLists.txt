@@ -6,7 +6,7 @@ add_library(dynarmic
     ../include/dynarmic/A32/disassembler.h
     ../include/dynarmic/A64/a64.h
     ../include/dynarmic/A64/config.h
-    ../include/dynarmic/exclusive_monitor.h
+    ../include/dynarmic/A64/exclusive_monitor.h
     common/assert.cpp
     common/assert.h
     common/bit_util.h
@@ -76,7 +76,6 @@ add_library(dynarmic
     frontend/A64/types.h
     frontend/decoder/decoder_detail.h
     frontend/decoder/matcher.h
-    frontend/imm.cpp
     frontend/imm.h
     frontend/ir/basic_block.cpp
     frontend/ir/basic_block.h
@@ -107,8 +106,6 @@ if ("A32" IN_LIST DYNARMIC_FRONTENDS)
     target_sources(dynarmic PRIVATE
         frontend/A32/decoder/arm.h
         frontend/A32/decoder/arm.inc
-        frontend/A32/decoder/asimd.h
-        frontend/A32/decoder/asimd.inc
         frontend/A32/decoder/thumb16.h
         frontend/A32/decoder/thumb32.h
         frontend/A32/decoder/vfp.h
@@ -123,13 +120,6 @@ if ("A32" IN_LIST DYNARMIC_FRONTENDS)
         frontend/A32/location_descriptor.cpp
         frontend/A32/location_descriptor.h
         frontend/A32/PSR.h
-        frontend/A32/translate/impl/asimd_load_store_structures.cpp
-        frontend/A32/translate/impl/asimd_misc.cpp
-        frontend/A32/translate/impl/asimd_one_reg_modified_immediate.cpp
-        frontend/A32/translate/impl/asimd_three_same.cpp
-        frontend/A32/translate/impl/asimd_two_regs_misc.cpp
-        frontend/A32/translate/impl/asimd_two_regs_scalar.cpp
-        frontend/A32/translate/impl/asimd_two_regs_shift.cpp
         frontend/A32/translate/impl/barrier.cpp
         frontend/A32/translate/impl/branch.cpp
         frontend/A32/translate/impl/coprocessor.cpp
@@ -260,9 +250,7 @@ if (ARCHITECTURE_x86_64)
         backend/x64/emit_x64_sm4.cpp
         backend/x64/emit_x64_vector.cpp
         backend/x64/emit_x64_vector_floating_point.cpp
-        backend/x64/emit_x64_vector_saturation.cpp
         backend/x64/exception_handler.h
-        backend/x64/exclusive_monitor.cpp
         backend/x64/hostloc.cpp
         backend/x64/hostloc.h
         backend/x64/jitstate_info.h
@@ -287,6 +275,7 @@ if (ARCHITECTURE_x86_64)
         target_sources(dynarmic PRIVATE
             backend/x64/a64_emit_x64.cpp
             backend/x64/a64_emit_x64.h
+            backend/x64/a64_exclusive_monitor.cpp
             backend/x64/a64_interface.cpp
             backend/x64/a64_jitstate.cpp
             backend/x64/a64_jitstate.h
@@ -344,7 +333,6 @@ target_link_libraries(dynarmic
         boost
         fmt::fmt
         mp
-        tsl::robin_map
         xbyak
         $<$<BOOL:DYNARMIC_USE_LLVM>:${llvm_libs}>
 )
