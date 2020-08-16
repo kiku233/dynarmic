@@ -17,6 +17,8 @@
 #include <mp/typelist/list.h>
 #include <mp/typelist/lower_to_tuple.h>
 
+#include <dynarmic/optimization_flags.h>
+
 #include "backend/x64/abi.h"
 #include "backend/x64/block_of_code.h"
 #include "backend/x64/emit_x64.h"
@@ -1022,7 +1024,7 @@ void EmitFPVectorMulAdd(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
             return;
         }
 
-        if (ctx.UnsafeOptimizations()) {
+        if (ctx.HasOptimization(OptimizationFlag::Unsafe_UnfuseFMA)) {
             auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
             const Xbyak::Xmm operand1 = ctx.reg_alloc.UseScratchXmm(args[0]);
@@ -1183,7 +1185,7 @@ static void EmitRecipEstimate(BlockOfCode& code, EmitContext& ctx, IR::Inst* ins
     using FPT = mp::unsigned_integer_of_size<fsize>;
 
     if constexpr (fsize != 16) {
-        if (ctx.UnsafeOptimizations()) {
+        if (ctx.HasOptimization(OptimizationFlag::Unsafe_ReducedErrorFP)) {
             auto args = ctx.reg_alloc.GetArgumentInfo(inst);
             const Xbyak::Xmm operand = ctx.reg_alloc.UseXmm(args[0]);
             const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
@@ -1261,6 +1263,21 @@ static void EmitRecipStepFused(BlockOfCode& code, EmitContext& ctx, IR::Inst* in
             code.add(rsp, 8);
             code.jmp(end, code.T_NEAR);
             code.SwitchToNearCode();
+
+            ctx.reg_alloc.DefineValue(inst, result);
+            return;
+        }
+
+        if (ctx.HasOptimization(OptimizationFlag::Unsafe_UnfuseFMA)) {
+            auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+
+            const Xbyak::Xmm operand1 = ctx.reg_alloc.UseScratchXmm(args[0]);
+            const Xbyak::Xmm operand2 = ctx.reg_alloc.UseXmm(args[1]);
+            const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
+
+            code.movaps(result, GetVectorOf<fsize, false, 0, 2>(code));
+            FCODE(mulp)(operand1, operand2);
+            FCODE(subp)(result, operand1);
 
             ctx.reg_alloc.DefineValue(inst, result);
             return;
@@ -1363,7 +1380,7 @@ static void EmitRSqrtEstimate(BlockOfCode& code, EmitContext& ctx, IR::Inst* ins
     using FPT = mp::unsigned_integer_of_size<fsize>;
 
     if constexpr (fsize != 16) {
-        if (ctx.UnsafeOptimizations()) {
+        if (ctx.HasOptimization(OptimizationFlag::Unsafe_ReducedErrorFP)) {
             auto args = ctx.reg_alloc.GetArgumentInfo(inst);
             const Xbyak::Xmm operand = ctx.reg_alloc.UseXmm(args[0]);
             const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
@@ -1447,6 +1464,22 @@ static void EmitRSqrtStepFused(BlockOfCode& code, EmitContext& ctx, IR::Inst* in
             code.add(rsp, 8);
             code.jmp(end, code.T_NEAR);
             code.SwitchToNearCode();
+
+            ctx.reg_alloc.DefineValue(inst, result);
+            return;
+        }
+
+        if (ctx.HasOptimization(OptimizationFlag::Unsafe_UnfuseFMA)) {
+            auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+
+            const Xbyak::Xmm operand1 = ctx.reg_alloc.UseScratchXmm(args[0]);
+            const Xbyak::Xmm operand2 = ctx.reg_alloc.UseXmm(args[1]);
+            const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
+
+            code.movaps(result, GetVectorOf<fsize, false, 0, 3>(code));
+            FCODE(mulp)(operand1, operand2);
+            FCODE(subp)(result, operand1);
+            FCODE(mulp)(result, GetVectorOf<fsize, false, -1, 1>(code));
 
             ctx.reg_alloc.DefineValue(inst, result);
             return;
